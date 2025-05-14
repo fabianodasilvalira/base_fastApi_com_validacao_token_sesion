@@ -1,11 +1,10 @@
 # FastAPI and Uvicorn (ASGI server)
 fastapi>=0.100.0,<0.112.0 # Mantenha uma faixa de versão para estabilidade
 uvicorn[standard]>=0.20.0,<0.28.0
-
+greenlet
 # Pydantic (v2) and Settings management
 pydantic>=2.0.0,<3.0.0
 pydantic-settings>=2.0.0,<3.0.0
-
 # Database (PostgreSQL with asyncpg)
 sqlalchemy[asyncio]>=2.0.0,<2.1.0 # SQLAlchemy 2.0+ para suporte async
 asyncpg>=0.27.0,<0.30.0 # Driver async para PostgreSQL

@@ -40,7 +40,9 @@ services:
       # This overrides the DB_HOST from .env if it was 'localhost'
       DB_HOST: db
       # Other environment variables can be set here or will be taken from .env
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"] # --reload for dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+    #command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"] # --reload for dev
     # For production, remove --reload and consider more workers:
     # command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
     # Or use gunicorn:
@@ -49,37 +51,3 @@ services:
 
 volumes:
   postgres_data: # Persists PostgreSQL data
-
-# Como usar este arquivo docker-compose.yml:
-# 1. Certifique-se de ter o Docker e Docker Compose instalados.
-# 2. Crie um arquivo `.env` a partir do `.env.example` e preencha as variáveis,
-#    especialmente `DB_USER`, `DB_PASS`, `DB_NAME`.
-#    O `DB_HOST` no `.env` pode ser `localhost` para desenvolvimento local sem Docker,
-#    mas o `docker-compose.yml` o sobrescreverá para `db` para comunicação entre contêineres.
-# 3. No terminal, na raiz do projeto (onde este arquivo está localizado), execute:
-#    `docker-compose up -d`
-#    Isso construirá a imagem da aplicação (se ainda não existir) e iniciará os serviços `db` e `app` em background.
-# 4. Para aplicar migrações do Alembic (após os contêineres estarem rodando):
-#    `docker-compose exec app alembic upgrade head`
-#    Você pode precisar rodar isso na primeira vez e sempre que houver novas migrações.
-# 5. Para inicializar o banco com dados (ex: superusuário, se configurado em `init_db.py`):
-#    `docker-compose exec app python -m app.core.init_db` (se `init_db.py` for executável como módulo)
-# 6. A aplicação estará acessível em `http://localhost:8000`.
-# 7. Para parar os serviços:
-#    `docker-compose down`
-# 8. Para ver os logs:
-#    `docker-compose logs -f app` (para a aplicação)
-#    `docker-compose logs -f db` (para o banco de dados)
-
-# Onde modificar configurações:
-# - Variáveis de ambiente: Principalmente no arquivo `.env`.
-#   Este `docker-compose.yml` carrega o `.env` para o serviço `app`.
-#   As variáveis `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` para o serviço `db`
-#   também podem ser lidas do `.env` ou usar os padrões definidos aqui.
-# - Imagem do banco de dados: `image: postgres:15-alpine` (pode ser alterada para outra versão).
-# - Comando da aplicação: O `command` no serviço `app` define como a aplicação FastAPI é iniciada.
-#   Ajuste para produção (remova `--reload`, adicione workers, ou use Gunicorn).
-# - Volumes: `postgres_data` para persistência do banco. O volume `./logs:/app/logs` monta o diretório de logs local.
-#   O volume `.:/app` é útil para desenvolvimento com hot-reloading, mas pode ser removido para produção
-#   se a imagem Docker já contiver todo o código necessário.
-

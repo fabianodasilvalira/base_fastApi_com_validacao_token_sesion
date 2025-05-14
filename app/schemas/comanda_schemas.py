@@ -18,6 +18,7 @@ class ComandaCreate(BaseModel):
     valor_pago: condecimal(max_digits=10, decimal_places=2) = 0.00
     valor_fiado: condecimal(max_digits=10, decimal_places=2) = 0.00
     observacoes: Optional[str] = None
+    qr_code_comanda_hash: Optional[str] = None # Adicionado para criação, se gerado no momento
 
 class ComandaUpdate(BaseModel):
     id_mesa: Optional[str] = None
@@ -27,9 +28,10 @@ class ComandaUpdate(BaseModel):
     valor_pago: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     valor_fiado: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     observacoes: Optional[str] = None
+    qr_code_comanda_hash: Optional[str] = None # Adicionado para atualização
 
 class ComandaInResponse(BaseModel):
-    id: str
+    id: str # Alterado para str para consistência, verificar se no model é int ou str
     id_mesa: str
     id_cliente_associado: Optional[str] = None
     status_comanda: StatusComanda
@@ -37,6 +39,8 @@ class ComandaInResponse(BaseModel):
     valor_pago: condecimal(max_digits=10, decimal_places=2)
     valor_fiado: condecimal(max_digits=10, decimal_places=2)
     observacoes: Optional[str] = None
+    qr_code_comanda_hash: Optional[str] = None # Adicionado para resposta
 
     class Config:
         orm_mode = True
+

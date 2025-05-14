@@ -1,6 +1,7 @@
 # app/db/models/comanda.py
 import enum
-from sqlalchemy import Column, ForeignKey, Enum as SAEnum, Numeric, Text, Integer, DateTime
+import uuid # Importar uuid para gerar hashes únicos
+from sqlalchemy import Column, ForeignKey, Enum as SAEnum, Numeric, Text, Integer, DateTime, String
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -24,6 +25,7 @@ class Comanda(Base):
     valor_pago = Column(Numeric(10, 2), default=0.00, nullable=False)
     valor_fiado = Column(Numeric(10, 2), default=0.00, nullable=False)
     observacoes = Column(Text, nullable=True)
+    qr_code_comanda_hash = Column(String, unique=True, index=True, nullable=True) # Novo campo para QRCode da comanda
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -33,3 +35,10 @@ class Comanda(Base):
     pagamentos = relationship("Pagamento", back_populates="comanda", cascade="all, delete-orphan")
     fiados_registrados = relationship("Fiado", back_populates="comanda", cascade="all, delete-orphan")
     venda = relationship("Venda", back_populates="comanda")
+
+    # Poderia ter um método para gerar o hash do QRCode ao criar a comanda
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(*args, **kwargs)
+    #     if not self.qr_code_comanda_hash:
+    #         self.qr_code_comanda_hash = str(uuid.uuid4())
+

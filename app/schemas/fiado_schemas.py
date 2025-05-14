@@ -64,3 +64,14 @@ class Fiado(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+# Schema para representar um pagamento feito em um fiado
+class FiadoPagamentoSchema(BaseModel):
+    id_fiado: int
+    valor_pago: float
+    data_pagamento: date
+    observacao: str | None = None
+
+    class Config:
+        orm_mode = True
