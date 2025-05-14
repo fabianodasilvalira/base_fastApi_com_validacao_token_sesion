@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, Boolean, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, relationship
 from app.db.base import Base
 
 class User(Base):
@@ -22,6 +22,8 @@ class User(Base):
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    vendas = relationship("Venda", back_populates="usuario")  # Certifique-se de que "usuario" está correto na classe Venda
 
     def __repr__(self):
         return (

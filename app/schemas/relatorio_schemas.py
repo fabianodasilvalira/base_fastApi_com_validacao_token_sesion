@@ -1,30 +1,57 @@
-# app/schemas/relatorio.py
-import uuid
-from typing import List, Optional
-from decimal import Decimal
+from typing import List
+from pydantic import BaseModel
 from datetime import date
 
-from pydantic import BaseModel
-
-# Este schema já foi definido na primeira entrega e no crud_fiado.py
-# Mantendo aqui para consistência da estrutura de pastas.
-
-class RelatorioFiadoItemSchemas(BaseModel):
-    id_cliente: uuid.UUID
-    nome_cliente: Optional[str] = "Cliente não informado"
-    valor_total_devido: Decimal
-    quantidade_fiados_pendentes: int
-    # data_ultimo_fiado: Optional[datetime] = None # Poderia ser útil
-
-    class Config:
-        from_attributes = True
+# Relatório de Fiados
+class FiadoSchemas(BaseModel):
+    id: int
+    nome_cliente: str
+    valor_total: float
+    status: str
+    data_criacao: date
 
 class RelatorioFiadoSchemas(BaseModel):
-    periodo_inicio: date
-    periodo_fim: date
-    total_geral_devido: Decimal
-    total_fiados_registrados_periodo: int  # Número de transações de fiado em aberto no período
-    detalhes_por_cliente: List[RelatorioFiadoItemSchemas]  # Corrigido o nome para RelatorioFiadoItemSchemas
+    fiados: List[FiadoSchemas]
 
-    class Config:
-        from_attributes = True
+# Relatório de Vendas
+class VendaSchemas(BaseModel):
+    id: int
+    valor_total: float
+    data_venda: date
+
+class RelatorioVendasSchemas(BaseModel):
+    vendas: List[VendaSchemas]
+
+# Relatório de Produtos Vendidos
+class ProdutoVendidoSchemas(BaseModel):
+    id: int
+    nome_produto: str
+    quantidade_vendida: int
+    preco_unitario: float
+    preco_total: float
+
+class RelatorioProdutosVendidosSchemas(BaseModel):
+    produtos_vendidos: List[ProdutoVendidoSchemas]
+
+# Relatório de Pedidos por Status
+class PedidoStatusSchemas(BaseModel):
+    id: int
+    status: str
+    data_criacao: date
+    valor_total: float
+
+class RelatorioPedidosPorStatusSchemas(BaseModel):
+    pedidos: List[PedidoStatusSchemas]
+
+# Relatório de Pedidos por Usuário
+class PedidoDetalhadoSchemas(BaseModel):
+    id: int
+    status: str
+    data_criacao: date
+    total: float
+    produtos: List[ProdutoVendidoSchemas]
+
+class RelatorioPedidosPorUsuarioSchemas(BaseModel):
+    usuario_id: int
+    nome_usuario: str
+    pedidos: List[PedidoDetalhadoSchemas]

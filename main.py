@@ -3,11 +3,13 @@ from asyncio.log import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, users, clientes, mesas, produtos  # Placeholder, will be created later
+from app.api.v1 import auth, users, clientes, mesas, produtos, fiado, relatorios, \
+    comandas, pedidos, pagamentos  # Placeholder, will be created later
 from app.core.config.settings import settings
 from app.core.init_db import init_db
 from app.core.logging.config import setup_logging # Placeholder
 from app.core.session import AsyncSessionFactory
+from app.models import venda
 
 # from app.core.logging.middleware import LoggingMiddleware # Placeholder
 
@@ -43,9 +45,10 @@ app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["u
 app.include_router(produtos.router, prefix=f"{settings.API_V1_STR}/produtos", tags=["Produtos"])
 app.include_router(clientes.router, prefix=f"{settings.API_V1_STR}/clientes", tags=["Clientes"])
 app.include_router(mesas.router, prefix=f"{settings.API_V1_STR}/mesas", tags=["Mesas"])
-app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/comandas", tags=["Comandas"])
-#app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/pedidos", tags=["Pedidos"])
-#app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/pagamentos", tags=["Pagamentos"])
-#app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/fiado", tags=["Fiado"])
-#app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/relatorios", tags=["Relatórios"])
+app.include_router(comandas.router, prefix=f"{settings.API_V1_STR}/comandas", tags=["Comandas"])
+app.include_router(pedidos.router, prefix=f"{settings.API_V1_STR}/pedidos", tags=["Pedidos"])
+app.include_router(pagamentos.router, prefix=f"{settings.API_V1_STR}/pagamentos", tags=["Pagamentos"])
+app.include_router(fiado.router, prefix=f"{settings.API_V1_STR}/fiado", tags=["Fiado"])
+app.include_router(relatorios.router, prefix=f"{settings.API_V1_STR}/relatorios", tags=["Relatórios"])
+app.include_router(venda.router, prefix=f"{settings.API_V1_STR}/venda", tags=["Vendas"])
 

@@ -1,32 +1,57 @@
-# app/schemas/pagamento_schemas.py
+from pydantic import BaseModel
+from enum import Enum
 from typing import Optional
-from uuid import UUID
-from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field
 
-class PagamentoBase(BaseModel):
-    comanda_id: UUID
-    valor: Decimal = Field(..., gt=0, example=50.75)
-    metodo_pagamento: str = Field(..., example="Cartão de Crédito") # Ex: Dinheiro, Cartão Crédito, Cartão Débito, Pix
-    observacoes: Optional[str] = Field(None, example="Pagamento parcial da comanda.")
 
-class PagamentoCreate(PagamentoBase):
-    pass
+class MetodoPagamento(str, Enum):
+    DINHEIRO = "Dinheiro"
+    CARTAO_CREDITO = "Cartão de Crédito"
+    CARTAO_DEBITO = "Cartão de Débito"
+    PIX = "Pix"
+    FIADO = "Fiado"
+    OUTRO = "Outro"
 
-# Geralmente pagamentos não são atualizados, mas registrados e, se necessário, estornados/cancelados.
-# Manter um PagamentoUpdate pode ser útil para casos específicos, como adicionar uma observação posterior.
-class PagamentoUpdate(BaseModel):
+
+class StatusPagamento(str, Enum):
+    PENDENTE = "Pendente"
+    APROVADO = "Aprovado"
+    REJEITADO = "Rejeitado"
+    CANCELADO = "Cancelado"
+
+
+class PagamentoCreateSchema(BaseModel):
+    id_comanda: int
+    id_cliente: Optional[int] = None
+    id_usuario_registrou: Optional[int] = None
+    valor_pago: Decimal
+    metodo_pagamento: MetodoPagamento
+    status_pagamento: StatusPagamento = StatusPagamento.APROVADO
+    detalhes_transacao: Optional[str] = None
     observacoes: Optional[str] = None
-    # Outros campos que poderiam ser atualizados, se a lógica de negócio permitir.
-    # Por exemplo, se um pagamento foi registrado com o método errado e precisa ser corrigido:
-    # metodo_pagamento: Optional[str] = None 
 
-class Pagamento(PagamentoBase):
-    id: UUID
-    data_pagamento: datetime
-    id_usuario_registrou: Optional[UUID] = None # ID do usuário (caixa/garçom) que registrou o pagamento
+
+class PagamentoUpdateSchema(BaseModel):
+    id_comanda: int
+    id_cliente: Optional[int] = None
+    id_usuario_registrou: Optional[int] = None
+    valor_pago: Decimal
+    metodo_pagamento: MetodoPagamento
+    status_pagamento: StatusPagamento
+    detalhes_transacao: Optional[str] = None
+    observacoes: Optional[str] = None
+
+
+class PagamentoResponseSchema(BaseModel):
+    id: int
+    id_comanda: int
+    id_cliente: Optional[int] = None
+    id_usuario_registrou: Optional[int] = None
+    valor_pago: Decimal
+    metodo_pagamento: MetodoPagamento
+    status_pagamento: StatusPagamento
+    detalhes_transacao: Optional[str] = None
+    observacoes: Optional[str] = None
 
     class Config:
-        from_attributes = True
-
+        orm_mode = True

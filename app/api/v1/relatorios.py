@@ -1,47 +1,132 @@
-# app/api/v1/endpoints/relatorios.py
-from typing import Any
-from datetime import date
-
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.dialects.postgresql import Any
 from sqlalchemy.orm import Session
-
-from app import crud, schemas, models # Ajuste os caminhos de importação
-from app.api import deps # Ajuste os caminhos de importação
-from app.models.usuario import Usuario
-from app.schemas.relatorio_schemas import RelatorioFiadoSchemas
+from datetime import date
+from app import schemas
+from app.api import deps
+from app.services.relatorio_service import (
+    get_relatorio_fiado,
+    get_relatorio_vendas,
+    get_relatorio_produtos_mais_vendidos,
+    get_relatorio_pedidos_por_status,
+    get_relatorio_pedidos_por_usuario
+)
 
 router = APIRouter()
 
-@router.get("/fiado", response_model=RelatorioFiadoSchemas)
+# Relatório de Fiados
+@router.get("/fiado", response_model=schemas.RelatorioFiadoSchemas)
 def get_relatorio_fiado_endpoint(
-    data_inicio: date, # Query parameter
-    data_fim: date,    # Query parameter
-    db: Session = Depends(deps.get_db),
-    current_user: Usuario = Depends(deps.get_current_active_superuser) # Apenas superusuários podem ver relatórios
+        data_inicio: date,
+        data_fim: date,
+        db: Session = Depends(deps.get_db)
 ) -> Any:
-    """
-    Gera um relatório de fiados pendentes e parcialmente pagos.
-    O relatório considera fiados que estavam com status Pendente ou Pago Parcialmente
-    no final do período `data_fim` e que foram criados em qualquer momento até `data_fim`.
-    """
     if data_inicio > data_fim:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A data de início não pode ser posterior à data de fim."
         )
-    
-    # A lógica de geração do relatório está em crud.fiado.get_relatorio_fiado
+
     try:
-        relatorio = crud.fiado.get_relatorio_fiado(db=db, data_inicio=data_inicio, data_fim=data_fim)
+        relatorio = get_relatorio_fiado(db=db, data_inicio=data_inicio, data_fim=data_fim)
     except Exception as e:
-        # Logar o erro e retornar um erro genérico
-        # logger.error(f"Erro ao gerar relatório de fiado: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro interno ao gerar o relatório de fiado: {e}"
         )
-    
+
     return relatorio
 
-# Outros endpoints de relatório podem ser adicionados aqui (ex: vendas, produtos mais vendidos, etc.)
+# Relatório de Vendas
+@router.get("/vendas", response_model=schemas.RelatorioVendasSchemas)
+def get_relatorio_vendas_endpoint(
+        data_inicio: date,
+        data_fim: date,
+        db: Session = Depends(deps.get_db)
+) -> Any:
+    if data_inicio > data_fim:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A data de início não pode ser posterior à data de fim."
+        )
 
+    try:
+        relatorio = get_relatorio_vendas(db=db, data_inicio=data_inicio, data_fim=data_fim)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro interno ao gerar o relatório de vendas: {e}"
+        )
+
+    return relatorio
+
+# Relatório de Produtos Mais Vendidos
+@router.get("/produtos-mais-vendidos", response_model=schemas.RelatorioProdutosVendidosSchemas)
+def get_relatorio_produtos_mais_vendidos_endpoint(
+        data_inicio: date,
+        data_fim: date,
+        db: Session = Depends(deps.get_db)
+) -> Any:
+    if data_inicio > data_fim:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A data de início não pode ser posterior à data de fim."
+        )
+
+    try:
+        relatorio = get_relatorio_produtos_mais_vendidos(db=db, data_inicio=data_inicio, data_fim=data_fim)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro interno ao gerar o relatório de produtos mais vendidos: {e}"
+        )
+
+    return relatorio
+
+# Relatório de Pedidos por Status
+@router.get("/pedidos-status", response_model=schemas.RelatorioPedidosPorStatusSchemas)
+def get_relatorio_pedidos_por_status_endpoint(
+        status_pedido: str,
+        data_inicio: date,
+        data_fim: date,
+        db: Session = Depends(deps.get_db)
+) -> Any:
+    if data_inicio > data_fim:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A data de início não pode ser posterior à data de fim."
+        )
+
+    try:
+        relatorio = get_relatorio_pedidos_por_status(db=db, status_pedido=status_pedido, data_inicio=data_inicio, data_fim=data_fim)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro interno ao gerar o relatório de pedidos por status: {e}"
+        )
+
+    return relatorio
+
+# Relatório de Pedidos por Usuário
+@router.get("/pedidos-usuario", response_model=schemas.RelatorioPedidosPorUsuarioSchemas)
+def get_relatorio_pedidos_por_usuario_endpoint(
+        usuario_id: int,
+        data_inicio: date,
+        data_fim: date,
+        db: Session = Depends(deps.get_db)
+) -> Any:
+    if data_inicio > data_fim:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A data de início não pode ser posterior à data de fim."
+        )
+
+    try:
+        relatorio = get_relatorio_pedidos_por_usuario(db=db, usuario_id=usuario_id, data_inicio=data_inicio, data_fim=data_fim)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro interno ao gerar o relatório de pedidos por usuário: {e}"
+        )
+
+    return relatorio

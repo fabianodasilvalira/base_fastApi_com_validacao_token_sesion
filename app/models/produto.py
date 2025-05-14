@@ -12,4 +12,8 @@ class Produto(Base):
     categoria = Column(String, nullable=True, index=True)
     disponivel = Column(Boolean, default=True)
 
+    # Relacionamento com vendas através da tabela de junção
+    vendas = relationship("Venda", secondary="venda_produto", back_populates="produtos")
+
+    # Relacionamento com itens de pedido
     itens_pedido = relationship("ItemPedido", back_populates="produto", cascade="all, delete-orphan")

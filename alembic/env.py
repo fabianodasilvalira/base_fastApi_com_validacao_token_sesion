@@ -15,7 +15,7 @@ from app.core.config.settings import settings
 from app.db.base import Base
 
 # Importe TODOS os modelos aqui para que sejam registrados
-from app.models import Cliente, Mesa, Comanda, ItemPedido, Produto
+from app.models import User, Cliente, Mesa, Comanda, ItemPedido, Produto, Fiado, Pagamento, Pedido, ItemPedido, Venda
 
 # Adicione outros modelos conforme necessário
 

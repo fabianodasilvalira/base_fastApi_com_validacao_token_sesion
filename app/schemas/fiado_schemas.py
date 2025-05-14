@@ -1,61 +1,66 @@
-# app/schemas/fiado_schemas.py
-from typing import Optional
-import uuid
-from datetime import datetime, date # Added date for data_vencimento
-from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel  # Adicionando BaseModel do Pydantic
+from datetime import date
 from enum import Enum
 
-# Definindo o Enum StatusFiado
-class StatusFiado(Enum):
+class StatusFiado(str, Enum):
     PENDENTE = "Pendente"
-    PAGO = "Pago"
-    VENCIDO = "Vencido"
-    RENEGOCIADO = "Renegociado"
+    PAGO_PARCIALMENTE = "Pago Parcialmente"
+    PAGO_TOTALMENTE = "Pago Totalmente"
+    CANCELADO = "Cancelado"
 
-
-class Cliente(BaseModel): # Placeholder
-    id: uuid.UUID
-    nome: Optional[str] = None
-    class Config:
-        from_attributes = True
-
-class Comanda(BaseModel): # Placeholder
-    id: uuid.UUID
-    # Add other relevant fields from ComandaSchemas if needed
-    class Config:
-        from_attributes = True
-
-class FiadoBaseSchemas(BaseModel):
-    id_cliente: uuid.UUID
-    valor_devido: Decimal = Field(..., gt=0)
-    data_vencimento: Optional[date] = None # Changed to date as time is not usually relevant for due date
-    status: Optional[str] = Field("Pendente", example="Pendente") # Pendente, Pago, Vencido, Renegociado
-    observacoes: Optional[str] = Field(None, example="Cliente pagará na próxima semana")
-
-class FiadoCreateSchemas(FiadoBaseSchemas):
-    id_comanda_origem: uuid.UUID
-
-class FiadoUpdateSchemas(BaseModel):
-    valor_devido: Optional[Decimal] = Field(None, gt=0)
-    data_vencimento: Optional[date] = None
-    status: Optional[str] = Field(None, example="Pago")
-    observacoes: Optional[str] = Field(None, example="Pagamento realizado integralmente")
-
-class FiadoSchemas(FiadoBaseSchemas):
-    id: uuid.UUID
-    id_comanda_origem: uuid.UUID
-    data_criacao: datetime
-    data_ultima_atualizacao: Optional[datetime] = None
-
-    cliente: Cliente # Placeholder
-    comanda_origem: Comanda # Placeholder
+# FiadoBase agora é um modelo explícito sem herança
+class FiadoBase(BaseModel):
+    id_comanda: int
+    id_cliente: int
+    id_usuario_registrou: int | None = None
+    valor_original: float
+    valor_devido: float
+    status_fiado: StatusFiado = StatusFiado.PENDENTE
+    data_vencimento: date | None = None
+    observacoes: str | None = None
 
     class Config:
-        from_attributes = True
+        orm_mode = True  # Isso permite que Pydantic use objetos SQLAlchemy como entradas.
 
+# FiadoCreate agora é definido explicitamente
+class FiadoCreate(BaseModel):
+    id_comanda: int
+    id_cliente: int
+    id_usuario_registrou: int | None = None
+    valor_original: float
+    valor_devido: float
+    status_fiado: StatusFiado = StatusFiado.PENDENTE
+    data_vencimento: date | None = None
+    observacoes: str | None = None
 
-class FiadoCreateSchemas(FiadoBaseSchemas):
-    id_comanda_origem: uuid.UUID
+    class Config:
+        orm_mode = True
 
+# FiadoUpdate agora é definido explicitamente
+class FiadoUpdate(BaseModel):
+    id_comanda: int
+    id_cliente: int
+    id_usuario_registrou: int | None = None
+    valor_original: float
+    valor_devido: float
+    status_fiado: StatusFiado = StatusFiado.PENDENTE
+    data_vencimento: date | None = None
+    observacoes: str | None = None
 
+    class Config:
+        orm_mode = True
+
+# Fiado agora é definido explicitamente
+class Fiado(BaseModel):
+    id: int
+    id_comanda: int
+    id_cliente: int
+    id_usuario_registrou: int | None = None
+    valor_original: float
+    valor_devido: float
+    status_fiado: StatusFiado = StatusFiado.PENDENTE
+    data_vencimento: date | None = None
+    observacoes: str | None = None
+
+    class Config:
+        orm_mode = True
