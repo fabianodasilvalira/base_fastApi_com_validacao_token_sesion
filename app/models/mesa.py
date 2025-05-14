@@ -23,3 +23,4 @@ class Mesa(Base):
     # Usando string para evitar importação circular
     cliente_associado = relationship("Cliente", back_populates="mesas_associadas")
     comandas = relationship("Comanda", back_populates="mesa")
+    pedidos = relationship("Pedido", back_populates="mesa")  # Relacionamento reverso

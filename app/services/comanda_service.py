@@ -1,7 +1,7 @@
 # app/services/comanda_service.py
 from sqlalchemy.orm import Session
-from app.db.models.comanda import Comanda, StatusComanda
-from app.schemas.comanda import ComandaCreate, ComandaUpdate
+from app.models.comanda import Comanda, StatusComanda
+from app.schemas.comanda_schemas import ComandaCreate, ComandaUpdate
 from uuid import uuid4
 
 

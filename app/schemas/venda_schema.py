@@ -18,3 +18,13 @@ class VendaSchemas(BaseModel):
 
     class Config:
         orm_mode = True
+
+# Modelo para a criação de uma venda
+class VendaCreate(BaseModel):
+    valor_total: float
+    data_venda: date
+    usuario_id: int
+    produtos: List[ProdutoVendaSchemas]
+
+    class Config:
+        orm_mode = True

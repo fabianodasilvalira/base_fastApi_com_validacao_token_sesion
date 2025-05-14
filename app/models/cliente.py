@@ -18,3 +18,4 @@ class Cliente(Base):
     mesas_associadas = relationship("Mesa", back_populates="cliente_associado")
     fiados_registrados = relationship("Fiado", back_populates="cliente")
     comandas = relationship("Comanda", back_populates="cliente")
+    vendas = relationship("Venda", back_populates="cliente")

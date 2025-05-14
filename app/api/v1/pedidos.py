@@ -5,15 +5,17 @@ from app import schemas, services
 from app.core.session import get_db_session
 from uuid import UUID
 
+from app.schemas.pedido_schemas import PedidoCreate, StatusPedido, ItemPedido, ItemPedidoCreate, Pedido
+
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
 
 # Criação de um novo pedido
-@router.post("/", response_model=schemas.Pedido, status_code=status.HTTP_201_CREATED)
-async def criar(pedido: schemas.PedidoCreate, db: Session = Depends(get_db_session)):
+@router.post("/", response_model=Pedido, status_code=status.HTTP_201_CREATED)
+async def criar(pedido: PedidoCreate, db: Session = Depends(get_db_session)):
     return services.criar_pedido(db, pedido)
 
 # Listar pedidos (com filtros opcionais)
-@router.get("/", response_model=List[schemas.Pedido])
+@router.get("/", response_model=List[Pedido])
 async def listar(
     db: Session = Depends(get_db_session),
     status: Optional[str] = None,  # Exemplo de filtro por status
@@ -23,10 +25,10 @@ async def listar(
     return services.listar_pedidos(db, status=status, data_inicio=data_inicio, data_fim=data_fim)
 
 # Atualização do status do pedido
-@router.put("/{pedido_id}/status", response_model=schemas.Pedido)
+@router.put("/{pedido_id}/status", response_model=Pedido)
 async def atualizar_status_pedido(
     pedido_id: UUID,
-    status_update: schemas.StatusPedido,
+    status_update: StatusPedido,
     db: Session = Depends(get_db_session)
 ):
     pedido_service = services.PedidoService()
@@ -38,7 +40,7 @@ async def atualizar_status_pedido(
     return pedido
 
 # Detalhar um pedido específico
-@router.get("/{pedido_id}", response_model=schemas.Pedido)
+@router.get("/{pedido_id}", response_model=Pedido)
 async def detalhar_pedido(pedido_id: UUID, db: Session = Depends(get_db_session)):
     pedido = services.buscar_pedido(db, pedido_id)
     if not pedido:
@@ -46,9 +48,9 @@ async def detalhar_pedido(pedido_id: UUID, db: Session = Depends(get_db_session)
     return pedido
 
 # Adicionar item ao pedido
-@router.post("/{pedido_id}/itens/", response_model=schemas.ItemPedido)
+@router.post("/{pedido_id}/itens/", response_model=ItemPedido)
 async def adicionar_item_pedido(
-    pedido_id: UUID, item_in: schemas.ItemPedidoCreate, db: Session = Depends(get_db_session)
+    pedido_id: UUID, item_in: ItemPedidoCreate, db: Session = Depends(get_db_session)
 ):
     item = services.adicionar_item(db, pedido_id, item_in)
     if not item:
@@ -66,7 +68,7 @@ async def remover_item_pedido(
     return {"detail": "Item removido com sucesso"}
 
 # Cancelar pedido
-@router.put("/{pedido_id}/cancelar", response_model=schemas.Pedido)
+@router.put("/{pedido_id}/cancelar", response_model=Pedido)
 async def cancelar_pedido(
     pedido_id: UUID, db: Session = Depends(get_db_session)
 ):
@@ -76,7 +78,7 @@ async def cancelar_pedido(
     return pedido
 
 # Listar pedidos de um usuário específico
-@router.get("/usuario/{usuario_id}", response_model=List[schemas.Pedido])
+@router.get("/usuario/{usuario_id}", response_model=List[Pedido])
 async def listar_pedidos_usuario(
     usuario_id: int, db: Session = Depends(get_db_session)
 ):

@@ -32,3 +32,4 @@ class Comanda(Base):
     itens_pedido = relationship("ItemPedido", back_populates="comanda", cascade="all, delete-orphan")
     pagamentos = relationship("Pagamento", back_populates="comanda", cascade="all, delete-orphan")
     fiados_registrados = relationship("Fiado", back_populates="comanda", cascade="all, delete-orphan")
+    venda = relationship("Venda", back_populates="comanda")

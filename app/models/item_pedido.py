@@ -2,7 +2,6 @@ from sqlalchemy import Column, ForeignKey, Integer, Numeric, DateTime, Text, Enu
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
-from app.models.pedido import StatusPedido
 from enum import Enum as PyEnum
 
 

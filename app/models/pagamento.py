@@ -25,6 +25,8 @@ class Pagamento(Base):
     id_comanda = Column(ForeignKey("comandas.id"), nullable=False)
     id_cliente = Column(ForeignKey("clientes.id"), nullable=True)
     id_usuario_registrou = Column(ForeignKey("users.id"), nullable=True)
+    id_venda = Column(ForeignKey("vendas.id"), nullable=True)
+    id_pedido = Column(ForeignKey("pedidos.id"), nullable=True)
 
     valor_pago = Column(Numeric(10, 2), nullable=False)
     metodo_pagamento = Column(SAEnum(MetodoPagamento), nullable=False)
@@ -37,3 +39,6 @@ class Pagamento(Base):
     comanda = relationship("Comanda", back_populates="pagamentos")
     cliente = relationship("Cliente")
     usuario_registrou = relationship("User", foreign_keys=[id_usuario_registrou])
+    pedido = relationship("Pedido", back_populates="pagamentos")
+    venda = relationship("Venda", back_populates="pagamentos")  # Relacionamento com Venda
+

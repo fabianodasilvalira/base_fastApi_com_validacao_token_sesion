@@ -25,6 +25,7 @@ class Pedido(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     id_comanda = Column(ForeignKey("comandas.id"), nullable=False)
     id_usuario_registrou = Column(ForeignKey("users.id"), nullable=True)
+    mesa_id = Column(ForeignKey("mesas.id"), nullable=True)
 
     tipo_pedido = Column(SAEnum(TipoPedido), default=TipoPedido.INTERNO_MESA, nullable=False)
     status_geral_pedido = Column(SAEnum(StatusPedido), default=StatusPedido.RECEBIDO, nullable=False)
@@ -35,3 +36,5 @@ class Pedido(Base):
     comanda = relationship("Comanda")
     usuario_registrou = relationship("User")
     itens = relationship("ItemPedido", back_populates="pedido", cascade="all, delete-orphan")
+    mesa = relationship("Mesa", back_populates="pedidos")
+    pagamentos = relationship("Pagamento", back_populates="pedido")

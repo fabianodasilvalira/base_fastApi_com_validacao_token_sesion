@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, root_validator
 from enum import Enum
 from typing import Optional, List
 from decimal import Decimal

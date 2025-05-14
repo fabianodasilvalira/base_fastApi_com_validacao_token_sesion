@@ -4,12 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import auth, users, clientes, mesas, produtos, fiado, relatorios, \
-    comandas, pedidos, pagamentos  # Placeholder, will be created later
+    comandas, pedidos, pagamentos, venda  # Placeholder, will be created later
 from app.core.config.settings import settings
 from app.core.init_db import init_db
 from app.core.logging.config import setup_logging # Placeholder
 from app.core.session import AsyncSessionFactory
-from app.models import venda
 
 # from app.core.logging.middleware import LoggingMiddleware # Placeholder
 
