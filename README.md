@@ -18,30 +18,9 @@ Este é um sistema de autenticação robusto utilizando **FastAPI**, com suporte
 
 ## 📁 Estrutura do Projeto
 
-    
-app/
-├── api/
-│ └── v1/
-│ ├── auth/ # Rotas e lógica de autenticação
-│ └── users/ # Rotas e lógica de usuário
-├── core/
-│ ├── config/ # Configurações (ex: settings.py)
-│ ├── logging/ # Configuração de logs com Loguru
-│ ├── init_db.py # Inicialização do banco com superusuário
-│ └── session.py # Gerenciador de sessões async
-├── models/ # Modelos SQLAlchemy
-├── schemas/ # Schemas Pydantic
-├── services/ # Serviços (ex: user_service)
-└── main.py # Ponto de entrada do sistema
-
-
----
 
 ## ⚙️ Instalação
 
-### 1. Clone o repositório
-
-```bash
 git clone https://github.com/seu-usuario/fastapi-auth-system.git
 cd fastapi-auth-system
 
