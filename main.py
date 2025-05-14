@@ -3,7 +3,7 @@ from asyncio.log import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, users # Placeholder, will be created later
+from app.api.v1 import auth, users, clientes, mesas, produtos  # Placeholder, will be created later
 from app.core.config.settings import settings
 from app.core.init_db import init_db
 from app.core.logging.config import setup_logging # Placeholder
@@ -31,13 +31,6 @@ if settings.BACKEND_CORS_ORIGINS:
 
 # app.add_middleware(LoggingMiddleware) # Add after creation
 
-@app.get(f"{settings.API_V1_STR}/healthcheck", tags=["healthcheck"])
-async def healthcheck():
-    """
-    Health check endpoint.
-    """
-    return {"status": "ok"}
-
 @app.on_event("startup")
 async def startup_event():
     logger.info("Executando rotina de startup...")
@@ -47,4 +40,12 @@ async def startup_event():
 
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
+app.include_router(produtos.router, prefix=f"{settings.API_V1_STR}/produtos", tags=["Produtos"])
+app.include_router(clientes.router, prefix=f"{settings.API_V1_STR}/clientes", tags=["Clientes"])
+app.include_router(mesas.router, prefix=f"{settings.API_V1_STR}/mesas", tags=["Mesas"])
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/comandas", tags=["Comandas"])
+#app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/pedidos", tags=["Pedidos"])
+#app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/pagamentos", tags=["Pagamentos"])
+#app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/fiado", tags=["Fiado"])
+#app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/relatorios", tags=["Relatórios"])
 

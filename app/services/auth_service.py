@@ -8,8 +8,8 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token
-from app.models import User
 from app.models.token import RefreshToken  # Assuming RefreshToken model is in app/models/token.py
+from app.models.user import User
 from app.schemas.auth import TokenRequest, TokenData
 from app.schemas.user import UserCreate
 from app.services import user_service
