@@ -1,0 +1,46 @@
+# FastAPI and Uvicorn (ASGI server)
+fastapi>=0.100.0,<0.112.0 # Mantenha uma faixa de versão para estabilidade
+uvicorn[standard]>=0.20.0,<0.28.0
+
+# Pydantic (v2) and Settings management
+pydantic>=2.0.0,<3.0.0
+pydantic-settings>=2.0.0,<3.0.0
+
+# Database (PostgreSQL with asyncpg)
+sqlalchemy[asyncio]>=2.0.0,<2.1.0 # SQLAlchemy 2.0+ para suporte async
+asyncpg>=0.27.0,<0.30.0 # Driver async para PostgreSQL
+alembic>=1.9.0,<1.14.0 # Para migrações de banco de dados
+psycopg2-binary>=2.9.0,<2.10.0 # Necessário pelo Alembic e, às vezes, implicitamente por outras ferramentas, mesmo com asyncpg
+
+# Authentication (JWT and password hashing)
+python-jose[cryptography]>=3.3.0,<3.4.0 # Para manipulação de JWT
+passlib[bcrypt]>=1.7.4,<1.8.0 # Para hashing de senhas
+
+# Email (opcional, para envio de emails)
+python-multipart>=0.0.6,<0.0.10 # Necessário para formulários (FastAPI o sugere)
+# emails>=0.6,<0.7 # Se for usar a biblioteca 'emails' para envio
+
+# Logging (configuração de rotação, etc.)
+loguru>=0.7.0,<0.8.0 # Uma biblioteca de logging poderosa e simples
+
+# Outras dependências úteis
+# httpx>=0.24.0,<0.28.0 # Para fazer requisições HTTP (se o backend precisar chamar outros serviços)
+# gunicorn>=20.1.0,<22.0.0 # Servidor WSGI de produção (se for usar em vez de uvicorn diretamente para workers)
+
+# Dependências de desenvolvimento (podem ser separadas em requirements-dev.txt)
+# pytest>=7.0.0,<8.0.0
+# pytest-asyncio>=0.20.0,<0.22.0
+# black>=23.0.0,<24.0.0
+# flake8>=6.0.0,<7.0.0
+
+# Como usar este arquivo:
+# 1. Crie um ambiente virtual: `python -m venv venv`
+# 2. Ative o ambiente: `source venv/bin/activate` (Linux/macOS) ou `venv\Scripts\activate` (Windows)
+# 3. Instale as dependências: `pip install -r requirements.txt`
+
+# Para adicionar novas dependências:
+# 1. Adicione a biblioteca e sua versão (ou faixa de versão) a este arquivo.
+# 2. Reinstale as dependências: `pip install -r requirements.txt`
+# É uma boa prática fixar versões ou usar faixas de versão para garantir builds reprodutíveis.
+# Exemplo: `minha-lib==1.2.3` ou `outra-lib>=1.0,<2.0`
+
