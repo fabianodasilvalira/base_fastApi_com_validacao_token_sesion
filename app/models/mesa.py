@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, Boolean # Adicionado Boolean
+from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, DateTime, func  # Adicionado Boolean
 from sqlalchemy.orm import relationship
 import enum
 import uuid # Importar uuid para gerar hashes únicos
@@ -22,6 +22,8 @@ class Mesa(Base):
     qr_code_hash = Column(String, nullable=True, unique=True, index=True) # Hash para acesso público (cardápio/chamar garçom)
     id_cliente_associado = Column(ForeignKey("clientes.id"), nullable=True)
     ativa_para_pedidos = Column(Boolean, default=True, nullable=False) # Novo campo para controlar se a mesa pode receber pedidos
+    criado_em = Column(DateTime(timezone=True), server_default=func.now())
+    atualizado_em = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Usando string para evitar importação circular
     cliente_associado = relationship("Cliente", back_populates="mesas_associadas")

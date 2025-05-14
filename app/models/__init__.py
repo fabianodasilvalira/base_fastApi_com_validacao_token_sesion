@@ -6,6 +6,7 @@ from .mesa import Mesa
 from .comanda import Comanda
 from .item_pedido import ItemPedido
 from .produto import Produto
+from .categoria import Categoria
 from .fiado import Fiado
 from .pagamento import Pagamento
 from .pedido import Pedido
@@ -16,6 +17,6 @@ from .venda_produto import VendaProduto
 
 
 __all__ = ["Base", "User","Cliente", "Mesa", "Comanda", "ItemPedido", "Produto", "Fiado", "Pagamento", "Pedido", "ItemPedido", "Venda",
-           "VendaProduto"]
+           "VendaProduto", "Categoria"]
 
 
