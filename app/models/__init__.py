@@ -12,11 +12,11 @@ from .pagamento import Pagamento
 from .pedido import Pedido
 from .item_pedido import ItemPedido
 from .venda import Venda
-from .venda_produto import VendaProduto
+from .venda_produto_item import VendaProdutoItem
 
 
 
 __all__ = ["Base", "User","Cliente", "Mesa", "Comanda", "ItemPedido", "Produto", "Fiado", "Pagamento", "Pedido", "ItemPedido", "Venda",
-           "VendaProduto", "Categoria"]
+           "VendaProdutoItem", "Categoria"]
 
 

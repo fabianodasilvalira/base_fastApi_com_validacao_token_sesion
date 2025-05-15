@@ -1,4 +1,4 @@
-from asyncio.log import logger
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +21,7 @@ from app.core.config.settings import settings
 from app.core.init_db import init_db
 from app.core.logging.config import setup_logging
 from app.core.session import AsyncSessionFactory
+logger = logging.getLogger(__name__)
 
 # Configura o logging da aplicação
 setup_logging()
@@ -43,12 +44,6 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-# Evento executado na inicialização da aplicação
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Executando rotina de startup...")
-    async with AsyncSessionFactory() as session:
-        await init_db(session)
 
 # Inclusão das rotas organizadas por grupo com tags para documentação Swagger
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Autenticação"])
