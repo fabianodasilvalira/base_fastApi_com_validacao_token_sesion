@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 class Venda(Base):
     __tablename__ = "vendas"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     valor_total = Column(Numeric(10, 2), nullable=False)  # Melhor para valores monetários
     data_venda = Column(Date, nullable=False)
     usuario_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -22,10 +22,4 @@ class Venda(Base):
     cliente = relationship("Cliente", back_populates="vendas")  # Se aplicável
     comanda = relationship("Comanda", back_populates="venda")  # Se aplicável
     pagamentos = relationship("Pagamento", back_populates="venda")  # Se aplicável
-
-    # Relacionamento muitos-para-muitos com produtos
-    produtos = relationship(
-        "Produto",
-        secondary="venda_produto",
-        back_populates="vendas"
-    )
+    itens_venda = relationship("VendaProdutoItem", back_populates="venda", cascade="all, delete-orphan")  # ADICIONADO

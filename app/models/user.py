@@ -15,6 +15,7 @@ class User(Base):
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
     phone = Column(String, unique=True, nullable=True)
+    imagem_url = Column(String(255), nullable=True, index=True)
 
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)

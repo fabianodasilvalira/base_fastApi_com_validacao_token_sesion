@@ -5,7 +5,7 @@ from app.db.base import Base
 class Categoria(Base):
     __tablename__ = "categorias"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     nome = Column(String, unique=True, nullable=False, index=True)
     descricao = Column(Text, nullable=True)
     imagem_url = Column(String(255), nullable=True, index=True)

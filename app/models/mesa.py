@@ -15,7 +15,7 @@ class StatusMesa(str, enum.Enum):
 class Mesa(Base):
     __tablename__ = "mesas"
 
-    id = Column(String, primary_key=True, index=True) # Considerar se ID deveria ser Integer autoincrementável
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     numero_identificador = Column(String, nullable=False, unique=True, index=True)
     capacidade = Column(Integer, nullable=True)
     status = Column(SAEnum(StatusMesa), default=StatusMesa.DISPONIVEL, nullable=False)

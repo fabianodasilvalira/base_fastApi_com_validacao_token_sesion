@@ -14,6 +14,7 @@ class Cliente(Base):
     endereco = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    imagem_url = Column(String(255), nullable=True, index=True)
 
     mesas_associadas = relationship("Mesa", back_populates="cliente_associado")
     fiados_registrados = relationship("Fiado", back_populates="cliente")
