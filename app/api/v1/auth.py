@@ -1,68 +1,95 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from fastapi.security import OAuth2PasswordRequestForm # For standard login form
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
-from app.core.session import get_db_session
+from app.core.security import verify_password
+from app.core.session import get_db
 from app.schemas.auth import TokenResponse, RefreshTokenRequest
-from app.schemas.user import UserCreate, UserPublic # UserPublic for returning user info
-from app.models.user import User # For type hinting current_user
-from app.api import deps # For current_user dependency
-from app.services import auth_service
+from app.schemas.user import UserCreate, UserPublic
+from app.services.auth_service import auth_service
+from app.services.user_service import UserService
 
 router = APIRouter()
 
+
 @router.post("/login", response_model=TokenResponse)
 async def login_for_access_token(
-    response: Response, # To set HTTPOnly cookie for refresh token
-    form_data: OAuth2PasswordRequestForm = Depends(), 
-    db: AsyncSession = Depends(get_db_session)
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Logs a user in and returns an access token and a refresh token.
-    The refresh token is also set as an HTTPOnly cookie.
-    Uses OAuth2PasswordRequestForm for standard username/password form body.
-    """
-    logger.info(f"Login attempt for user: {form_data.username}")
-    user = await auth_service.authenticate_user(
-        db, email=form_data.username, password=form_data.password
-    )
-    if not user:
-        logger.warning(f"Login failed: Invalid credentials for {form_data.username}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if not user.is_active:
-        logger.warning(f"Login failed: User {form_data.username} is inactive.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Inactive user"
+    try:
+        logger.debug(f"Tentando login para: {form_data.username}")
+
+        # 1. Buscar usuário
+        user = await UserService.get_user_by_email(db, email=form_data.username)
+        if not user:
+            logger.warning(f"Usuário {form_data.username} não encontrado no banco de dados.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        logger.debug(f"Usuário encontrado: {user.email} - ID: {user.id}")
+
+        # 2. Validar senha
+        if not verify_password(form_data.password, user.hashed_password):
+            logger.warning(f"Senha incorreta para usuário: {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # 3. Verificar se usuário está ativo
+        if not user.is_active:
+            logger.warning(f"Usuário inativo: {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Inactive user"
+            )
+
+        # 4. Gerar tokens
+        access_token, refresh_token_str = await auth_service.create_user_tokens(
+            user_id=user.id,
+            email=user.email
         )
 
-    access_token, refresh_token_str = await auth_service.create_user_tokens(user_id=user.id, email=user.email)
-    await auth_service.store_refresh_token(db, user_id=user.id, token_str=refresh_token_str)
+        await auth_service.store_refresh_token(db, user_id=user.id, token_str=refresh_token_str)
 
-    # Set refresh token in an HTTPOnly cookie for better security
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token_str,
-        httponly=True,
-        samesite="lax", # or "strict"
-        # secure=True, # Should be True in production (HTTPS)
-        # domain="example.com", # Set your domain in production
-        # path="/api/v1/auth", # Path where cookie is valid
-        expires=auth_service.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 # Expires in days
-    )
-    logger.info(f"User {form_data.username} logged in successfully. Access token and refresh token generated.")
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token_str, token_type="bearer")
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token_str,
+            httponly=True,
+            samesite="lax",
+            secure=True,
+            max_age=30 * 24 * 60 * 60  # 30 dias
+        )
+
+        logger.info(f"Login bem-sucedido para {user.email}")
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token_str,
+            token_type="bearer"
+        )
+
+    except HTTPException as e:
+        logger.error(f"HTTPException durante login: {e.detail}")
+        raise
+    except Exception as e:
+        logger.error(f"Erro inesperado durante login: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during login"
+        )
 
 @router.post("/refresh-token", response_model=TokenResponse)
 async def refresh_access_token(
-    response: Response,
-    refresh_request: RefreshTokenRequest, 
-    db: AsyncSession = Depends(get_db_session)
+        response: Response,
+        refresh_request: RefreshTokenRequest,
+        db: AsyncSession = Depends(get_db)
 ):
     """
     Refreshes an access token using a valid refresh token.
@@ -80,12 +107,13 @@ async def refresh_access_token(
             detail="Invalid or expired refresh token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Invalidate the old refresh token
     await auth_service.invalidate_refresh_token(db, token_str=token_str)
 
     # Generate new pair of tokens
-    new_access_token, new_refresh_token_str = await auth_service.create_user_tokens(user_id=user.id, email=user.email)
+    new_access_token, new_refresh_token_str = await auth_service.create_user_tokens(user_id=user.id,
+                                                                                    email=user.email)
     await auth_service.store_refresh_token(db, user_id=user.id, token_str=new_refresh_token_str)
 
     response.set_cookie(
@@ -100,12 +128,12 @@ async def refresh_access_token(
 
 @router.post("/logout")
 async def logout(
-    response: Response,
-    db: AsyncSession = Depends(get_db_session),
-    # current_user: User = Depends(deps.get_current_active_user) # Optional: ensure user is logged in to log out
-    # If you want to invalidate a specific refresh token provided by client (e.g. from cookie implicitly)
-    # you might need to read it from the request cookies if not sent in body.
-    # For simplicity, this example assumes client discards tokens, and we clear the cookie.
+        response: Response,
+        db: AsyncSession = Depends(get_db),
+        # current_user: User = Depends(deps.get_current_active_user) # Optional: ensure user is logged in to log out
+        # If you want to invalidate a specific refresh token provided by client (e.g. from cookie implicitly)
+        # you might need to read it from the request cookies if not sent in body.
+        # For simplicity, this example assumes client discards tokens, and we clear the cookie.
 ):
     """
     Logs a user out.
@@ -119,14 +147,13 @@ async def logout(
     #     await auth_service.invalidate_refresh_token(db, token_str=refresh_token_from_cookie)
 
     logger.info(f"Logout attempt. Clearing refresh_token cookie.")
-    response.delete_cookie(key="refresh_token", samesite="lax") # Ensure samesite matches what was set
+    response.delete_cookie(key="refresh_token", samesite="lax")  # Ensure samesite matches what was set
     return {"message": "Logout successful"}
-
 
 @router.post("/signup", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
 async def signup_new_user(
-    user_in: UserCreate, 
-    db: AsyncSession = Depends(get_db_session)
+        user_in: UserCreate,
+        db: AsyncSession = Depends(get_db)
 ):
     """
     Creates a new user.
@@ -139,7 +166,7 @@ async def signup_new_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The user with this email already exists in the system.",
         )
-    
+
     # Ensure password and confirm_password match if confirm_password is part of UserCreate schema
     # if hasattr(user_in, 'confirm_password') and user_in.password != user_in.confirm_password:
     #     logger.warning(f"Signup failed for {user_in.email}: Passwords do not match.")
@@ -163,4 +190,3 @@ async def signup_new_user(
 # - `/refresh-token`: Recebe refresh token, retorna novos tokens, novo refresh token em cookie HTTPOnly.
 # - `/logout`: Limpa o cookie do refresh token.
 # - `/signup`: Cria um novo usuário.
-

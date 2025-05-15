@@ -75,16 +75,3 @@ def decode_token(token: str) -> TokenData | None:
     except JWTError as e:
         logger.warning(f"Token decoding failed: {e}")
         return None
-
-# Onde modificar configurações de Segurança:
-# - Chaves e algoritmos: `app/core/config/security.py` (carregado do .env).
-# - Duração dos tokens: `app/core/config/security.py` (carregado do .env).
-# - Este arquivo (`app/core/security.py`) contém a lógica de hashing e JWT.
-
-# Fluxo de Autenticação (reforçando):
-# 1. Usuário envia credenciais.
-# 2. `get_password_hash` é usado para criar hash de senha no registro.
-# 3. `verify_password` é usado para verificar senha no login.
-# 4. `create_access_token` e `create_refresh_token` são usados para gerar tokens após login bem-sucedido.
-# 5. `decode_token` é usado em dependências (como `deps.get_current_user`) para validar tokens e extrair dados do usuário.
-

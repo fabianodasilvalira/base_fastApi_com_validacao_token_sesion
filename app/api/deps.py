@@ -5,12 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError
 from loguru import logger
 
-from app.core.session import get_db_session
+from app.core.session import get_db
 from app.core.security import decode_token # Use the decode_token function from core.security
 from app.core.config.settings import settings
 from app.models.user import User
 from app.schemas.auth import TokenData # Schema for token payload
-from app.services import auth_service
+from app.services.auth_service import auth_service
 
 # from app.services.user_service import user_service # Or use auth_service if it has get_user_by_id/email
 
@@ -22,7 +22,7 @@ reusable_oauth2 = OAuth2PasswordBearer(
 )
 
 async def get_current_user(
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     token: str = Depends(reusable_oauth2)
 ) -> User:
     """

@@ -5,6 +5,7 @@ from typing import List
 import uuid
 
 from app.core.session import get_db_session
+from app.models import mesa
 from app.services import produto_service, mesa_service, comanda_service # Supondo que estes services existem/serão criados
 from app.schemas.produto_schemas import ProdutoOut # Reutilizando schema existente
 from app.schemas.comanda_schemas import ComandaInResponse # Para detalhes da comanda
@@ -127,3 +128,9 @@ async def fazer_pedido_via_mesa_qr(
         print(f"Erro ao processar pedido público para mesa {mesa.id} (QR: {qr_code_hash}): {e}") # Log temporário
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Ocorreu um erro ao processar seu pedido. Tente novamente mais tarde.")
 
+
+@router.post("/mesa/{qr_code_hash}/fazer-pedido")
+async def fazer_pedido_via_mesa_qr(qr_code_hash: str, pedido_data: PedidoPublicCreateSchema, db: AsyncSession = Depends(get_db_session)):
+    # código que verifica a mesa e chama o serviço para processar o pedido
+    comanda_atualizada_info = await pedido_service.processar_pedido_publico(db, mesa.id, pedido_data, mesa.numero_identificador)
+    return comanda_atualizada_info

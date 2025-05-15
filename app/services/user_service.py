@@ -1,7 +1,7 @@
 from typing import Optional
-
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.user import UserCreate
@@ -10,16 +10,18 @@ from loguru import logger
 
 
 class UserService:
-    async def get_user_by_email(self, db, email: str) -> Optional[User]:
-        """ Retrieves a user by email """
+    @staticmethod
+    async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
+        """Retrieves a user by email."""
         stmt = select(User).where(User.email == email)
         result = await db.execute(stmt)
         return result.scalars().first()
 
-    async def create_user(self, db, user_in: UserCreate) -> User:
-        """ Creates a new user in the system """
+    @staticmethod
+    async def create_user(db: AsyncSession, user_in: UserCreate) -> User:
+        """Creates a new user in the system"""
         logger.debug(f"Attempting to create user: {user_in.email}")
-        existing_user = await self.get_user_by_email(db, email=user_in.email)
+        existing_user = await UserService.get_user_by_email(db, email=user_in.email)
         if existing_user:
             logger.warning(f"User creation failed: Email {user_in.email} already registered.")
             raise HTTPException(

@@ -14,6 +14,8 @@ psycopg2-binary>=2.9.0,<2.10.0 # Necessário pelo Alembic e, às vezes, implicit
 # Authentication (JWT and password hashing)
 python-jose[cryptography]>=3.3.0,<3.4.0 # Para manipulação de JWT
 passlib[bcrypt]>=1.7.4,<1.8.0 # Para hashing de senhas
+passlib==1.7.4
+bcrypt==4.0.1
 
 # Email (opcional, para envio de emails)
 python-multipart>=0.0.6,<0.0.10 # Necessário para formulários (FastAPI o sugere)
