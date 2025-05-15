@@ -42,5 +42,5 @@ class ComandaInResponse(BaseModel):
     qr_code_comanda_hash: Optional[str] = None # Adicionado para resposta
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 

@@ -25,4 +25,4 @@ class ProdutoOut(BaseModel):
     disponivel: Optional[bool] = True
 
     class Config:
-        orm_mode = True
+        from_attributes = True

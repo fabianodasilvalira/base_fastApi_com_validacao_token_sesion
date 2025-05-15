@@ -26,7 +26,7 @@ class ClienteInDB(ClienteBase):
     endereco: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ClienteOut(ClienteInDB):

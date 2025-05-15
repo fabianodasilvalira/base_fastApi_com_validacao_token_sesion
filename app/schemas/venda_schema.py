@@ -17,7 +17,7 @@ class VendaSchemas(BaseModel):
     produtos: List[ProdutoVendaSchemas]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Modelo para a criação de uma venda
 class VendaCreate(BaseModel):
@@ -27,4 +27,4 @@ class VendaCreate(BaseModel):
     produtos: List[ProdutoVendaSchemas]
 
     class Config:
-        orm_mode = True
+        from_attributes = True

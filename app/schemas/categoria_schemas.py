@@ -19,4 +19,4 @@ class CategoriaResponse(CategoriaBase):
     atualizado_em: Optional[datetime]
 
     class Config:
-        orm_mode = True
+        from_attributes = True

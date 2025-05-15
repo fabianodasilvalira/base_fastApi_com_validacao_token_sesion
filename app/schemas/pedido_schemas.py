@@ -46,7 +46,7 @@ class ItemPedido(ItemPedidoCreate):
     status_item_pedido: StatusPedido
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schema para criação de um pedido
 class PedidoCreate(BaseModel):
@@ -63,4 +63,4 @@ class Pedido(PedidoCreate):
     itens: List[ItemPedido]
 
     class Config:
-        orm_mode = True
+        from_attributes = True

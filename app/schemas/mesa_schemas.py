@@ -19,7 +19,7 @@ class MesaCreate(BaseModel):
     id_cliente_associado: Optional[str] = None  # Pode ser nulo, uma mesa pode não ter cliente associado
 
     class Config:
-        orm_mode = True  # Permite que o Pydantic converta os dados da ORM para um formato Pydantic
+        from_attributes = True  # Permite que o Pydantic converta os dados da ORM para um formato Pydantic
 
 # Schema para a resposta de uma mesa (ao buscar informações sobre a mesa)
 class MesaOut(MesaCreate):

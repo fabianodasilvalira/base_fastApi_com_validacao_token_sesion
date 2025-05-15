@@ -20,7 +20,7 @@ class FiadoBase(BaseModel):
     observacoes: str | None = None
 
     class Config:
-        orm_mode = True  # Isso permite que Pydantic use objetos SQLAlchemy como entradas.
+        from_attributes = True  # Isso permite que Pydantic use objetos SQLAlchemy como entradas.
 
 # FiadoCreate agora é definido explicitamente
 class FiadoCreate(BaseModel):
@@ -34,7 +34,7 @@ class FiadoCreate(BaseModel):
     observacoes: str | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # FiadoUpdate agora é definido explicitamente
 class FiadoUpdate(BaseModel):
@@ -48,7 +48,7 @@ class FiadoUpdate(BaseModel):
     observacoes: str | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Fiado agora é definido explicitamente
 class Fiado(BaseModel):
@@ -63,7 +63,7 @@ class Fiado(BaseModel):
     observacoes: str | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Schema para representar um pagamento feito em um fiado
@@ -74,4 +74,4 @@ class FiadoPagamentoSchema(BaseModel):
     observacao: str | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True

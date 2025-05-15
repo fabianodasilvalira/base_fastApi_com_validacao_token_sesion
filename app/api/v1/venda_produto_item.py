@@ -5,7 +5,7 @@ from app.core.session import get_db_session
 from app.schemas.venda_produto_item import VendaProdutoItemCreate, VendaProdutoItemUpdate, VendaProdutoItemOut
 from app.services import venda_produto_item_service
 
-router = APIRouter(prefix="/venda-itens", tags=["Itens de Venda"])
+router = APIRouter()
 
 
 @router.post("/", response_model=VendaProdutoItemOut)
@@ -14,7 +14,7 @@ def adicionar_item(item: VendaProdutoItemCreate, db: Session = Depends(get_db_se
 
 
 @router.get("/{venda_id}", response_model=list[VendaProdutoItemOut])
-def listar_itens(venda_id: int, db: Session = Depends(get_db_session())):
+def listar_itens(venda_id: int, db: Session = Depends(get_db_session)):
     return venda_produto_item_service.get_itens_by_venda(db, venda_id)
 
 
