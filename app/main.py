@@ -15,7 +15,7 @@ from app.api.v1 import (
     produtos,
     relatorios,
     users,
-    venda, venda_produto_item,
+    venda, venda_produto_item, notifications,
 )
 from app.core.config.settings import settings
 from app.core.init_db import init_db
@@ -59,3 +59,4 @@ app.include_router(relatorios.router, prefix=f"{settings.API_V1_STR}/relatorios"
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["Usuários"])
 app.include_router(venda.router, prefix=f"{settings.API_V1_STR}/venda", tags=["Vendas"])
 app.include_router(venda_produto_item.router, prefix=f"{settings.API_V1_STR}/venda_produto_item", tags=["Produtos por Venda"])
+app.include_router(notifications.router, prefix=f"{settings.API_V1_STR}/notifications", tags=["Notificações"])

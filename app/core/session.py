@@ -1,18 +1,18 @@
-# app/db/session.py ou similar
+from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_session
 from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager
 from app.core.config.settings import settings
 from loguru import logger
 
-# Criação do engine assíncrono
+# Engine assíncrono
 engine = create_async_engine(
     str(settings.DATABASE_URL),
     pool_pre_ping=True,
 )
 
-# Fábrica de sessões assíncronas
+# Fábrica de sessão
 AsyncSessionFactory = sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -20,7 +20,6 @@ AsyncSessionFactory = sessionmaker(
     autoflush=False,
     autocommit=False,
 )
-
 
 @asynccontextmanager
 async def get_db_session():
@@ -35,3 +34,8 @@ async def get_db_session():
     finally:
         logger.debug(f"DB Session {id(session)} closed.")
         await session.close()
+
+# Este é o que você deve importar no auth.py
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionFactory() as session:
+        yield session

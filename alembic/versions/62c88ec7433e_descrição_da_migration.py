@@ -1,8 +1,8 @@
-"""adiciona model Categoria e relacionamento com Produto
+"""descrição_da_migration
 
-Revision ID: 27fd0294d37e
+Revision ID: 62c88ec7433e
 Revises: 
-Create Date: 2025-05-15 18:16:03.496994
+Create Date: 2025-05-15 08:12:07.558492
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '27fd0294d37e'
+revision: str = '62c88ec7433e'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

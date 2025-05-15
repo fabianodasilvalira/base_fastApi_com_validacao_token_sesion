@@ -4,7 +4,7 @@ from typing import List
 from uuid import UUID
 from loguru import logger
 
-from app.core.session import get_db_session
+from app.core.session import get_db
 from app.schemas.user import UserPublic, UserUpdate, UserCreate
 from app.models.user import User
 from app.api import deps
@@ -18,7 +18,7 @@ router = APIRouter(
 @router.post("/", response_model=UserPublic, status_code=status.HTTP_201_CREATED, summary="Criar novo usuário (admin)")
 async def criar_usuario(
     usuario: UserCreate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
@@ -45,7 +45,7 @@ async def obter_usuario_logado(
 @router.get("/{usuario_id}", response_model=UserPublic, summary="Obter usuário por ID (admin)")
 async def obter_usuario_por_id(
     usuario_id: UUID,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
@@ -63,7 +63,7 @@ async def obter_usuario_por_id(
 async def atualizar_usuario_por_id(
     usuario_id: UUID,
     dados_usuario: UserUpdate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
@@ -93,3 +93,4 @@ async def atualizar_usuario_por_id(
 
     logger.info(f"Usuário {usuario.email} (ID: {usuario_id}) atualizado com sucesso por {usuario_atual.email}.")
     return usuario
+
