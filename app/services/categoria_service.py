@@ -1,34 +1,58 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update, delete
+from sqlalchemy.orm import selectinload
+
 from app.models.categoria import Categoria
 from app.schemas.categoria_schemas import CategoriaCreate, CategoriaUpdate
 
-def get_all(db: Session):
-    return db.query(Categoria).all()
 
-def get_by_id(db: Session, categoria_id: int):
-    return db.query(Categoria).filter(Categoria.id == categoria_id).first()
+async def get_all(db: AsyncSession):
+    result = await db.execute(select(Categoria).order_by(Categoria.nome))
+    return result.scalars().all()
 
-def create(db: Session, categoria: CategoriaCreate):
-    db_categoria = Categoria(**categoria.dict())
+
+async def get_by_id(db: AsyncSession, categoria_id: int):
+    result = await db.execute(
+        select(Categoria)
+        .where(Categoria.id == categoria_id)
+        .options(selectinload(Categoria.produtos))
+    )
+    return result.scalar_one_or_none()
+
+
+async def create(db: AsyncSession, categoria: CategoriaCreate):
+    # Convertemos o modelo Pydantic para dict e usamos diretamente
+    db_categoria = Categoria(**categoria.model_dump())
     db.add(db_categoria)
-    db.commit()
-    db.refresh(db_categoria)
+    await db.commit()
+    await db.refresh(db_categoria)
     return db_categoria
 
-def update(db: Session, categoria_id: int, categoria_update: CategoriaUpdate):
-    db_categoria = get_by_id(db, categoria_id)
+
+async def update(db: AsyncSession, categoria_id: int, categoria_update: CategoriaUpdate):
+    # Primeiro buscamos a categoria existente
+    db_categoria = await get_by_id(db, categoria_id)
     if not db_categoria:
         return None
-    for key, value in categoria_update.dict(exclude_unset=True).items():
+
+    # Atualizamos os campos
+    update_data = categoria_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
         setattr(db_categoria, key, value)
-    db.commit()
-    db.refresh(db_categoria)
+
+    db.add(db_categoria)
+    await db.commit()
+    await db.refresh(db_categoria)
     return db_categoria
 
-def delete(db: Session, categoria_id: int):
-    db_categoria = get_by_id(db, categoria_id)
+
+async def delete(db: AsyncSession, categoria_id: int):
+    # Primeiro buscamos a categoria existente
+    db_categoria = await get_by_id(db, categoria_id)
     if not db_categoria:
         return False
-    db.delete(db_categoria)
-    db.commit()
+
+    # Removemos a categoria
+    await db.delete(db_categoria)
+    await db.commit()
     return True

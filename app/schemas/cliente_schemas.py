@@ -7,6 +7,7 @@ class ClienteBase(BaseModel):
     telefone: Optional[str] = None
     observacoes: Optional[str] = None
     endereco: Optional[str] = None
+    imagem_url: Optional[str] = None  # Adicionado
 
 
 class ClienteCreate(ClienteBase):
@@ -19,7 +20,7 @@ class ClienteUpdate(ClienteBase):
 
 
 class ClienteInDB(ClienteBase):
-    id: str
+    id: int  # Alterado de str para int
     nome: str
     telefone: str
     observacoes: Optional[str] = None
@@ -31,3 +32,4 @@ class ClienteInDB(ClienteBase):
 
 class ClienteOut(ClienteInDB):
     pass
+

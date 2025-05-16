@@ -9,7 +9,7 @@ class Cliente(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     nome = Column(String, nullable=False, index=True)
-    telefone = Column(String, nullable=False, index=True, unique=True)
+    telefone = Column(String, nullable=False, index=True)
     observacoes = Column(Text, nullable=True)
     endereco = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())

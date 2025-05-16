@@ -1,4 +1,4 @@
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, field_validator, model_validator
 from enum import Enum
 from typing import Optional, List
 from decimal import Decimal
@@ -24,25 +24,26 @@ class TipoPedido(str, Enum):
 class ItemPedidoCreate(BaseModel):
     id_produto: int
     quantidade: int
-    preco_unitario_no_momento: Decimal
-    preco_total_item: Decimal
-    observacoes_item: Optional[str] = None
+    preco_unitario: Decimal
+    observacao: Optional[str] = None
     status_item_pedido: StatusPedido = StatusPedido.RECEBIDO
 
-    # Validação para garantir que o preço total está correto
-    @root_validator(pre=True)
-    def validar_preco_total(cls, values):
-        quantidade = values.get('quantidade')
-        preco_unitario = values.get('preco_unitario_no_momento')
-        preco_total_item = values.get('preco_total_item')
+    @model_validator(mode='after')
+    def calcular_preco_total(self) -> 'ItemPedidoCreate':
+        self.preco_total_item = self.quantidade * self.preco_unitario
+        return self
 
-        if preco_total_item != (quantidade * preco_unitario):
-            raise ValueError("O preço total do item não é consistente com a quantidade e o preço unitário.")
-        return values
+    class Config:
+        from_attributes = True
 
 # Schema para itens do pedido (resposta)
-class ItemPedido(ItemPedidoCreate):
+class ItemPedido(BaseModel):
     id: int
+    id_produto: int
+    quantidade: int
+    preco_unitario: Decimal
+    preco_total_item: Decimal
+    observacao: Optional[str] = None
     status_item_pedido: StatusPedido
 
     class Config:
@@ -57,10 +58,43 @@ class PedidoCreate(BaseModel):
     observacoes_pedido: Optional[str] = None
     itens: List[ItemPedidoCreate]
 
+    class Config:
+        from_attributes = True
+
 # Schema de resposta do pedido
-class Pedido(PedidoCreate):
+class Pedido(BaseModel):
     id: int
+    id_comanda: int
+    id_usuario_registrou: Optional[int] = None
+    tipo_pedido: TipoPedido
+    status_geral_pedido: StatusPedido
+    observacoes_pedido: Optional[str] = None
     itens: List[ItemPedido]
 
     class Config:
         from_attributes = True
+
+# Schemas para interface pública (QRCode)
+class ItemPedidoPublicCreateSchema(BaseModel):
+    produto_id: int
+    quantidade: int
+    observacao: Optional[str] = None
+
+class PedidoPublicCreateSchema(BaseModel):
+    itens: List[ItemPedidoPublicCreateSchema]
+
+class ItemPedidoPublicResponseSchema(BaseModel):
+    produto_nome: str
+    quantidade: int
+    preco_unitario: Decimal
+    preco_total_item: Decimal
+    observacao: Optional[str] = None
+
+class PedidoPublicResponseSchema(BaseModel):
+    id_comanda: str
+    status_comanda: str
+    mesa_numero: Optional[str] = None
+    itens_confirmados: List[ItemPedidoPublicResponseSchema]
+    valor_total_comanda_atual: Decimal
+    mensagem_confirmacao: str
+    qr_code_comanda_hash: Optional[str] = None

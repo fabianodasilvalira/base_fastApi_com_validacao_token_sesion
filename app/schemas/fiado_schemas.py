@@ -1,4 +1,4 @@
-from pydantic import BaseModel  # Adicionando BaseModel do Pydantic
+from pydantic import BaseModel
 from datetime import date
 from enum import Enum
 
@@ -8,7 +8,7 @@ class StatusFiado(str, Enum):
     PAGO_TOTALMENTE = "Pago Totalmente"
     CANCELADO = "Cancelado"
 
-# FiadoBase agora é um modelo explícito sem herança
+# Modelo base para todos os schemas de Fiado
 class FiadoBase(BaseModel):
     id_comanda: int
     id_cliente: int
@@ -20,58 +20,29 @@ class FiadoBase(BaseModel):
     observacoes: str | None = None
 
     class Config:
-        from_attributes = True  # Isso permite que Pydantic use objetos SQLAlchemy como entradas.
+        from_attributes = True  # Permite que Pydantic use objetos SQLAlchemy como entradas
 
-# FiadoCreate agora é definido explicitamente
-class FiadoCreate(BaseModel):
-    id_comanda: int
-    id_cliente: int
-    id_usuario_registrou: int | None = None
-    valor_original: float
-    valor_devido: float
-    status_fiado: StatusFiado = StatusFiado.PENDENTE
-    data_vencimento: date | None = None
-    observacoes: str | None = None
+# Schema para criação de um novo fiado
+class FiadoCreate(FiadoBase):
+    pass
 
-    class Config:
-        from_attributes = True
+# Schema para atualização de um fiado existente
+class FiadoUpdate(FiadoBase):
+    pass
 
-# FiadoUpdate agora é definido explicitamente
-class FiadoUpdate(BaseModel):
-    id_comanda: int
-    id_cliente: int
-    id_usuario_registrou: int | None = None
-    valor_original: float
-    valor_devido: float
-    status_fiado: StatusFiado = StatusFiado.PENDENTE
-    data_vencimento: date | None = None
-    observacoes: str | None = None
-
-    class Config:
-        from_attributes = True
-
-# Fiado agora é definido explicitamente
-class Fiado(BaseModel):
+# Schema para resposta com dados completos do fiado
+class Fiado(FiadoBase):
     id: int
-    id_comanda: int
-    id_cliente: int
-    id_usuario_registrou: int | None = None
-    valor_original: float
-    valor_devido: float
-    status_fiado: StatusFiado = StatusFiado.PENDENTE
-    data_vencimento: date | None = None
-    observacoes: str | None = None
 
     class Config:
         from_attributes = True
-
 
 # Schema para representar um pagamento feito em um fiado
 class FiadoPagamentoSchema(BaseModel):
-    id_fiado: int
     valor_pago: float
-    data_pagamento: date
-    observacao: str | None = None
+    id_usuario_registrou: int | None = None
+    observacoes: str | None = None
+    data_pagamento: date = date.today()
 
     class Config:
         from_attributes = True

@@ -27,10 +27,13 @@ class AppSettings(BaseAppSettings):
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
+    # Redis
+    REDIS_URL: str  # ✅ <-- Adicione isto aqui
+
     # Segurança
     ALGORITHM: str = "HS256"
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS

@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 from uuid import UUID
 from loguru import logger
 
 from app.core.session import get_db
 from app.schemas.user import UserPublic, UserUpdate, UserCreate
-from app.models.user import User
+from app.models.user import User # Modelo SQLAlchemy
 from app.api import deps
-from app.services import auth_service
+from app.services.user_service import user_service # Alterado de auth_service
+from app.core.security import get_password_hash # Adicionado para hash de senha
 
 router = APIRouter(
     prefix="/usuarios",
@@ -21,14 +21,8 @@ async def criar_usuario(
     db: AsyncSession = Depends(get_db),
     usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
-    """
-    Cria um novo usuário no sistema.
-    **Acesso restrito a administradores.**
-
-    > Usuários comuns devem se cadastrar através do endpoint `/auth/signup`.
-    """
     logger.info(f"Admin {usuario_atual.email} tentando criar o usuário: {usuario.email}")
-    novo_usuario = await auth_service.create_user(db, user_in=usuario)
+    novo_usuario = await user_service.create_user(db=db, user_in=usuario) # Alterado para user_service
     logger.info(f"Usuário {novo_usuario.email} criado com sucesso pelo admin {usuario_atual.email}.")
     return novo_usuario
 
@@ -36,9 +30,6 @@ async def criar_usuario(
 async def obter_usuario_logado(
     usuario_atual: User = Depends(deps.get_current_active_user)
 ):
-    """
-    Retorna os dados do usuário atualmente autenticado.
-    """
     logger.info(f"Buscando dados do usuário logado: {usuario_atual.email}")
     return usuario_atual
 
@@ -48,12 +39,8 @@ async def obter_usuario_por_id(
     db: AsyncSession = Depends(get_db),
     usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
-    """
-    Retorna os dados de um usuário específico a partir do seu **UUID**.
-    **Acesso restrito a administradores.**
-    """
     logger.info(f"Admin {usuario_atual.email} buscando usuário pelo ID: {usuario_id}")
-    usuario = await auth_service.get_user_by_id(db, user_id=usuario_id)
+    usuario = await user_service.get_user_by_id(db=db, user_id=usuario_id) # Alterado para user_service
     if not usuario:
         logger.warning(f"Usuário com ID {usuario_id} não encontrado.")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
@@ -66,14 +53,8 @@ async def atualizar_usuario_por_id(
     db: AsyncSession = Depends(get_db),
     usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
-    """
-    Atualiza as informações de um usuário a partir do seu **UUID**.
-    **Acesso restrito a administradores.**
-
-    > Para atualizações pessoais, utilize o endpoint `/usuarios/me`.
-    """
     logger.info(f"Usuário {usuario_atual.email} tentando atualizar o usuário ID: {usuario_id}")
-    usuario = await auth_service.get_user_by_id(db, user_id=usuario_id)
+    usuario = await user_service.get_user_by_id(db=db, user_id=usuario_id) # Alterado para user_service
     if not usuario:
         logger.warning(f"Usuário com ID {usuario_id} não encontrado para atualização.")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
@@ -81,7 +62,7 @@ async def atualizar_usuario_por_id(
     dados = dados_usuario.model_dump(exclude_unset=True)
 
     if "password" in dados and dados["password"]:
-        usuario.hashed_password = auth_service.get_password_hash(dados["password"])
+        usuario.hashed_password = get_password_hash(dados["password"]) # Alterado para usar import direto
         del dados["password"]
 
     for campo, valor in dados.items():
