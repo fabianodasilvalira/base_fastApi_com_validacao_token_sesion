@@ -4,6 +4,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.session import AsyncSessionFactory
 from app.models.user import User
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash
@@ -61,6 +63,34 @@ class UserService:
         await db.refresh(db_user)
         logger.info(f"User {user_in.email} created successfully (ID: {db_user.id}).")
         return db_user
+
+
+async def create_first_superuser():
+    async with AsyncSessionFactory() as session:
+        try:
+            result = await session.execute(
+                select(User).where(User.email == settings.FIRST_SUPERUSER)
+            )
+            user = result.scalar_one_or_none()
+
+            if user:
+                logger.info("Superusuário já existe.")
+                return
+
+            superuser = User(
+                email=settings.FIRST_SUPERUSER,
+                hashed_password=get_password_hash(settings.FIRST_SUPERUSER_PASSWORD),
+                is_active=True,
+                is_superuser=True,
+                first_name="Administrador",
+                username="admin"
+            )
+
+            session.add(superuser)
+            await session.commit()
+            logger.info("Superusuário criado com sucesso.")
+        except Exception as e:
+            logger.error(f"Erro ao criar superusuário: {e}")
 
 
 user_service = UserService()

@@ -18,9 +18,9 @@ from app.api.v1 import (
     venda, venda_produto_item, notifications,
 )
 from app.core.config.settings import settings
-from app.core.init_db import init_db
 from app.core.logging.config import setup_logging
-from app.core.session import AsyncSessionFactory
+from app.services.user_service import create_first_superuser
+
 logger = logging.getLogger(__name__)
 
 # Configura o logging da aplicação
@@ -34,7 +34,12 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
-# Middleware de CORS para permitir requisições de outros domínios
+# ✅ DEPOIS da criação do app
+@app.on_event("startup")
+async def on_startup():
+    await create_first_superuser()
+
+# Middleware de CORS
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
@@ -44,8 +49,7 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-
-# Inclusão das rotas organizadas por grupo com tags para documentação Swagger
+# Rotas
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Autenticação"])
 app.include_router(categoria.router, prefix=f"{settings.API_V1_STR}/categoria", tags=["Categoria"])
 app.include_router(clientes.router, prefix=f"{settings.API_V1_STR}/clientes", tags=["Clientes"])
