@@ -1,68 +1,84 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.core.session import get_db_session
+from app.core.session import get_db
 from app.schemas.pagamento_schemas import (
     PagamentoResponseSchema,
     PagamentoCreateSchema,
     PagamentoUpdateSchema
 )
-from app.services import pagamento_service
+from app.services.pagamento_service import (
+    listar_pagamentos,
+    obter_pagamento,
+    criar_pagamento,
+    atualizar_pagamento,
+    deletar_pagamento
+)
 
-router = APIRouter(prefix="/pagamentos", tags=["Pagamentos"])
+# Removendo o prefixo "/pagamentos" do router para evitar duplicação
+router = APIRouter()
 
 @router.get("/", response_model=List[PagamentoResponseSchema])
-def listar_pagamentos(db: Session = Depends(get_db_session)):
+async def read_multiple(skip: int = 0, limit: int = 100, db_session: AsyncSession = Depends(get_db)):
     """
     Retorna a lista de todos os pagamentos cadastrados.
 
+    - **skip**: Número de registros a pular (paginação).
+    - **limit**: Número máximo de registros a retornar.
     - **Retorno**: Lista de pagamentos
     """
-    return pagamento_service.listar_pagamentos(db)
+    return await listar_pagamentos(db_session, skip, limit)
 
 @router.get("/{pagamento_id}", response_model=PagamentoResponseSchema)
-def obter_pagamento(pagamento_id: int, db: Session = Depends(get_db_session)):
+async def read(pagamento_id: int, db_session: AsyncSession = Depends(get_db)):
     """
     Retorna os dados de um pagamento específico.
 
-    - **parâmetro**: `pagamento_id` - ID do pagamento a ser consultado
+    - **pagamento_id**: ID do pagamento a ser consultado
     - **Retorno**: Dados do pagamento
     - **Erro**: 404 se o pagamento não for encontrado
     """
-    pagamento = pagamento_service.obter_pagamento(db, pagamento_id)
+    pagamento = await obter_pagamento(db_session, pagamento_id)
     if not pagamento:
         raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     return pagamento
 
 @router.post("/", response_model=PagamentoResponseSchema)
-def criar_pagamento(pagamento: PagamentoCreateSchema, db: Session = Depends(get_db_session)):
+async def create(pagamento: PagamentoCreateSchema, db_session: AsyncSession = Depends(get_db)):
     """
     Cria um novo pagamento no sistema.
 
-    - **Corpo da requisição**: Dados do novo pagamento
+    - **pagamento**: Dados do novo pagamento
     - **Retorno**: Pagamento criado
     """
-    return pagamento_service.criar_pagamento(db, pagamento)
+    return await criar_pagamento(db_session, pagamento)
 
 @router.put("/{pagamento_id}", response_model=PagamentoResponseSchema)
-def atualizar_pagamento(pagamento_id: int, dados: PagamentoUpdateSchema, db: Session = Depends(get_db_session)):
+async def update(pagamento_id: int, dados: PagamentoUpdateSchema, db_session: AsyncSession = Depends(get_db)):
     """
     Atualiza os dados de um pagamento existente.
 
-    - **parâmetro**: `pagamento_id` - ID do pagamento a ser atualizado
-    - **Corpo da requisição**: Dados atualizados
+    - **pagamento_id**: ID do pagamento a ser atualizado
+    - **dados**: Dados atualizados
     - **Retorno**: Pagamento atualizado
+    - **Erro**: 404 se o pagamento não for encontrado
     """
-    return pagamento_service.atualizar_pagamento(db, pagamento_id, dados)
+    pagamento = await atualizar_pagamento(db_session, pagamento_id, dados)
+    if not pagamento:
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+    return pagamento
 
 @router.delete("/{pagamento_id}", response_model=PagamentoResponseSchema)
-def deletar_pagamento(pagamento_id: int, db: Session = Depends(get_db_session)):
+async def delete(pagamento_id: int, db_session: AsyncSession = Depends(get_db)):
     """
     Remove um pagamento do sistema.
 
-    - **parâmetro**: `pagamento_id` - ID do pagamento a ser excluído
+    - **pagamento_id**: ID do pagamento a ser excluído
     - **Retorno**: Pagamento excluído
     - **Erro**: 404 se o pagamento não for encontrado
     """
-    return pagamento_service.deletar_pagamento(db, pagamento_id)
+    pagamento = await deletar_pagamento(db_session, pagamento_id)
+    if not pagamento:
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+    return pagamento

@@ -24,6 +24,8 @@ class Comanda(Base):
     valor_total_calculado = Column(Numeric(10, 2), default=0.00, nullable=False)
     valor_pago = Column(Numeric(10, 2), default=0.00, nullable=False)
     valor_fiado = Column(Numeric(10, 2), default=0.00, nullable=False)
+    valor_desconto = Column(Numeric(10, 2), default=0.00, nullable=False)
+    motivo_cancelamento = Column(Text, nullable=True)
     observacoes = Column(Text, nullable=True)
     qr_code_comanda_hash = Column(String, unique=True, index=True, nullable=True) # Novo campo para QRCode da comanda
     created_at = Column(DateTime, default=func.now())

@@ -1,37 +1,37 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.session import get_db_session
+from app.core.session import get_db
 from app.services.mesa_service import create_mesa, get_mesa, get_mesas, update_mesa, delete_mesa
-from app.schemas.mesa_schemas import MesaCreate, MesaOut, MesaUpdate
+from app.schemas.mesa_schemas import MesaCreate, MesaUpdate, MesaOut
 
-router = APIRouter(prefix="/mesas", tags=["Mesas"])
+router = APIRouter()
 
 @router.post("/", response_model=MesaOut)
-def criar_mesa(mesa: MesaCreate, db: Session = Depends(get_db_session)):
+async def create(mesa: MesaCreate, db_session: AsyncSession = Depends(get_db)):
     """
     Cria uma nova mesa.
 
     - **mesa**: Dados da nova mesa a ser criada.
     - **return**: Objeto da mesa criada.
     """
-    return create_mesa(db=db, mesa=mesa)
+    return await create_mesa(db_session, mesa)
 
 @router.get("/{mesa_id}", response_model=MesaOut)
-def obter_mesa_por_id(mesa_id: int, db: Session = Depends(get_db_session)):
+async def read(mesa_id: int, db_session: AsyncSession = Depends(get_db)):
     """
     Retorna os dados de uma mesa pelo ID.
 
     - **mesa_id**: ID da mesa que se deseja buscar.
     - **return**: Objeto da mesa encontrada.
     """
-    db_mesa = get_mesa(db=db, mesa_id=mesa_id)
-    if db_mesa is None:
+    db_mesa = await get_mesa(db_session, mesa_id)
+    if not db_mesa:
         raise HTTPException(status_code=404, detail="Mesa não encontrada")
     return db_mesa
 
 @router.get("/", response_model=list[MesaOut])
-def listar_mesas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db_session)):
+async def read_multiple(skip: int = 0, limit: int = 100, db_session: AsyncSession = Depends(get_db)):
     """
     Lista todas as mesas cadastradas.
 
@@ -39,10 +39,14 @@ def listar_mesas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db_s
     - **limit**: Número máximo de registros a retornar.
     - **return**: Lista de mesas.
     """
-    return get_mesas(db=db, skip=skip, limit=limit)
+    return await get_mesas(db_session, skip, limit)
 
 @router.put("/{mesa_id}", response_model=MesaOut)
-def atualizar_mesa(mesa_id: int, mesa_update: MesaUpdate, db: Session = Depends(get_db_session)):
+async def update(
+    mesa_id: int,
+    mesa: MesaUpdate,
+    db_session: AsyncSession = Depends(get_db)
+):
     """
     Atualiza os dados de uma mesa existente.
 
@@ -50,20 +54,20 @@ def atualizar_mesa(mesa_id: int, mesa_update: MesaUpdate, db: Session = Depends(
     - **mesa_update**: Dados atualizados da mesa.
     - **return**: Objeto da mesa atualizada.
     """
-    db_mesa = update_mesa(db=db, mesa_id=mesa_id, mesa_update=mesa_update)
-    if db_mesa is None:
+    db_mesa = await update_mesa(db_session, mesa_id, mesa)
+    if not db_mesa:
         raise HTTPException(status_code=404, detail="Mesa não encontrada")
     return db_mesa
 
 @router.delete("/{mesa_id}", response_model=MesaOut)
-def deletar_mesa(mesa_id: int, db: Session = Depends(get_db_session)):
+async def delete(mesa_id: int, db_session: AsyncSession = Depends(get_db)):
     """
     Deleta uma mesa do sistema.
 
     - **mesa_id**: ID da mesa que será removida.
     - **return**: Objeto da mesa deletada.
     """
-    db_mesa = delete_mesa(db=db, mesa_id=mesa_id)
-    if db_mesa is None:
+    db_mesa = await delete_mesa(db_session, mesa_id)
+    if not db_mesa:
         raise HTTPException(status_code=404, detail="Mesa não encontrada")
     return db_mesa

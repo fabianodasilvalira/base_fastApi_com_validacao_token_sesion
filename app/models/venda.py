@@ -10,7 +10,7 @@ class Venda(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     valor_total = Column(Numeric(10, 2), nullable=False)  # Melhor para valores monetários
     data_venda = Column(Date, nullable=False)
-    usuario_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=True)  # Se aplicável
     comanda_id = Column(Integer, ForeignKey("comandas.id"), nullable=True)  # Se aplicável
 

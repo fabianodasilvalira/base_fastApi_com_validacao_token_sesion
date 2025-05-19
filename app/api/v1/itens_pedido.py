@@ -1,32 +1,61 @@
-# app/routers/item_pedido.py
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 
-from app.core.session import get_db_session
+from app.core.session import get_db
 from app.schemas.item_pedido_schemas import ItemPedidoCreate, ItemPedidoUpdate, ItemPedidoInResponse
-from app.services.item_pedido import criar_item_pedido, atualizar_item_pedido, obter_item_pedido, obter_itens_pedido_por_comanda
+from app.services.item_pedido_service import criar_item_pedido, atualizar_item_pedido, obter_item_pedido, obter_itens_pedido_por_comanda
 
 router = APIRouter()
 
 @router.post("/", response_model=ItemPedidoInResponse)
-def criar_item_pedido_api(item_pedido: ItemPedidoCreate, db: Session = Depends(get_db_session())):
-    return criar_item_pedido(db=db, item_pedido=item_pedido)
+async def criar_item_pedido_api(
+    item_pedido: ItemPedidoCreate,
+    db_session: AsyncSession = Depends(get_db)
+):
+    """
+    Cria um novo item de pedido.
+    """
+    return await criar_item_pedido(db_session=db_session, item_pedido=item_pedido)
 
 @router.put("/{item_pedido_id}", response_model=ItemPedidoInResponse)
-def atualizar_item_pedido_api(item_pedido_id: str, item_pedido: ItemPedidoUpdate, db: Session = Depends(get_db_session)):
-    item_pedido_atualizado = atualizar_item_pedido(db=db, item_pedido_id=item_pedido_id, item_pedido=item_pedido)
+async def atualizar_item_pedido_api(
+    item_pedido_id: int,
+    item_pedido: ItemPedidoUpdate,
+    db_session: AsyncSession = Depends(get_db)
+):
+    """
+    Atualiza um item de pedido existente.
+    """
+    item_pedido_atualizado = await atualizar_item_pedido(
+        db_session=db_session,
+        item_pedido_id=item_pedido_id,
+        item_pedido=item_pedido
+    )
     if not item_pedido_atualizado:
-        raise HTTPException(status_code=404, detail="ItemPedido não encontrado")
+        raise HTTPException(status_code=404, detail="Item de pedido não encontrado")
     return item_pedido_atualizado
 
 @router.get("/{item_pedido_id}", response_model=ItemPedidoInResponse)
-def obter_item_pedido_api(item_pedido_id: str, db: Session = Depends(get_db_session)):
-    item_pedido = obter_item_pedido(db=db, item_pedido_id=item_pedido_id)
+async def obter_item_pedido_api(
+    item_pedido_id: int,
+    db_session: AsyncSession = Depends(get_db)
+):
+    """
+    Obtém um item de pedido específico pelo ID.
+    """
+    item_pedido = await obter_item_pedido(db_session=db_session, item_pedido_id=item_pedido_id)
     if not item_pedido:
-        raise HTTPException(status_code=404, detail="ItemPedido não encontrado")
+        raise HTTPException(status_code=404, detail="Item de pedido não encontrado")
     return item_pedido
 
-@router.get("/comanda/{id_comanda}", response_model=list[ItemPedidoInResponse])
-def obter_itens_pedido_por_comanda_api(id_comanda: str, db: Session = Depends(get_db_session)):
-    itens_pedido = obter_itens_pedido_por_comanda(db=db, id_comanda=id_comanda)
+@router.get("/comanda/{id_comanda}", response_model=List[ItemPedidoInResponse])
+async def obter_itens_pedido_por_comanda_api(
+    id_comanda: int,
+    db_session: AsyncSession = Depends(get_db)
+):
+    """
+    Lista todos os itens de pedido associados a uma comanda específica.
+    """
+    itens_pedido = await obter_itens_pedido_por_comanda(db_session=db_session, id_comanda=id_comanda)
     return itens_pedido

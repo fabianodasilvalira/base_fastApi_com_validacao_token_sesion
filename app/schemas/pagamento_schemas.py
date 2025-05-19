@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from enum import Enum
 from typing import Optional
 from decimal import Decimal
+from datetime import datetime
 
 
 class MetodoPagamento(str, Enum):
@@ -24,6 +25,8 @@ class PagamentoCreateSchema(BaseModel):
     id_comanda: int
     id_cliente: Optional[int] = None
     id_usuario_registrou: Optional[int] = None
+    id_venda: Optional[int] = None
+    id_pedido: Optional[int] = None
     valor_pago: Decimal
     metodo_pagamento: MetodoPagamento
     status_pagamento: StatusPagamento = StatusPagamento.APROVADO
@@ -32,12 +35,14 @@ class PagamentoCreateSchema(BaseModel):
 
 
 class PagamentoUpdateSchema(BaseModel):
-    id_comanda: int
+    id_comanda: Optional[int] = None
     id_cliente: Optional[int] = None
     id_usuario_registrou: Optional[int] = None
-    valor_pago: Decimal
-    metodo_pagamento: MetodoPagamento
-    status_pagamento: StatusPagamento
+    id_venda: Optional[int] = None
+    id_pedido: Optional[int] = None
+    valor_pago: Optional[Decimal] = None
+    metodo_pagamento: Optional[MetodoPagamento] = None
+    status_pagamento: Optional[StatusPagamento] = None
     detalhes_transacao: Optional[str] = None
     observacoes: Optional[str] = None
 
@@ -47,11 +52,18 @@ class PagamentoResponseSchema(BaseModel):
     id_comanda: int
     id_cliente: Optional[int] = None
     id_usuario_registrou: Optional[int] = None
+    id_venda: Optional[int] = None
+    id_pedido: Optional[int] = None
     valor_pago: Decimal
     metodo_pagamento: MetodoPagamento
     status_pagamento: StatusPagamento
     detalhes_transacao: Optional[str] = None
     observacoes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }

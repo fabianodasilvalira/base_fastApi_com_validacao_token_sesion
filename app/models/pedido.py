@@ -30,6 +30,7 @@ class Pedido(Base):
     tipo_pedido = Column(SAEnum(TipoPedido), default=TipoPedido.INTERNO_MESA, nullable=False)
     status_geral_pedido = Column(SAEnum(StatusPedido), default=StatusPedido.RECEBIDO, nullable=False)
     observacoes_pedido = Column(Text, nullable=True)
+    motivo_cancelamento = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

@@ -1,8 +1,8 @@
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator, Field
 from enum import Enum
 from typing import Optional, List
 from decimal import Decimal
-from uuid import UUID
+from datetime import datetime
 
 # Enum para o status do pedido
 class StatusPedido(str, Enum):
@@ -45,9 +45,14 @@ class ItemPedido(BaseModel):
     preco_total_item: Decimal
     observacao: Optional[str] = None
     status_item_pedido: StatusPedido
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 # Schema para criação de um pedido
 class PedidoCreate(BaseModel):
@@ -70,9 +75,14 @@ class Pedido(BaseModel):
     status_geral_pedido: StatusPedido
     observacoes_pedido: Optional[str] = None
     itens: List[ItemPedido]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 # Schemas para interface pública (QRCode)
 class ItemPedidoPublicCreateSchema(BaseModel):
@@ -98,3 +108,11 @@ class PedidoPublicResponseSchema(BaseModel):
     valor_total_comanda_atual: Decimal
     mensagem_confirmacao: str
     qr_code_comanda_hash: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
