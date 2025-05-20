@@ -25,7 +25,7 @@ class Fiado(Base):
     status_fiado = Column(SAEnum(StatusFiado), default=StatusFiado.PENDENTE, nullable=False)
     data_vencimento = Column(Date, nullable=True)
     observacoes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
+    data_registro = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     comanda = relationship("Comanda", back_populates="fiados_registrados")

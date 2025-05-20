@@ -27,7 +27,7 @@ class Comanda(Base):
     valor_desconto = Column(Numeric(10, 2), default=0.00, nullable=False)
     motivo_cancelamento = Column(Text, nullable=True)
     observacoes = Column(Text, nullable=True)
-    qr_code_comanda_hash = Column(String, unique=True, index=True, nullable=True) # Novo campo para QRCode da comanda
+    qr_code_comanda_hash = Column(String, unique=True, index=True, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -38,9 +38,8 @@ class Comanda(Base):
     fiados_registrados = relationship("Fiado", back_populates="comanda", cascade="all, delete-orphan")
     venda = relationship("Venda", back_populates="comanda")
 
-    # Poderia ter um método para gerar o hash do QRCode ao criar a comanda
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     if not self.qr_code_comanda_hash:
-    #         self.qr_code_comanda_hash = str(uuid.uuid4())
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.qr_code_comanda_hash:
+            self.qr_code_comanda_hash = str(uuid.uuid4())
 

@@ -1,62 +1,77 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.produto import Produto
 from app.schemas.produto_schemas import ProdutoCreate, ProdutoUpdate
 from fastapi import HTTPException
+from app.models import Categoria
 
 
-def criar_produto(db: Session, produto: ProdutoCreate):
+async def criar_produto(db: AsyncSession, produto: ProdutoCreate):
     try:
         db_produto = Produto(**produto.dict())
         db.add(db_produto)
-        db.commit()
-        db.refresh(db_produto)
+        await db.commit()
+        await db.refresh(db_produto)
         return db_produto
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao criar produto: {str(e)}")
 
 
-def listar_produtos(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(Produto).offset(skip).limit(limit).all()
+async def listar_produtos(db: AsyncSession, skip: int = 0, limit: int = 100):
+    stmt = select(Produto).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
-def obter_produto(db: Session, produto_id: int):
-    produto = db.query(Produto).filter(Produto.id == produto_id).first()
-    if not produto:
-        return None
+async def obter_produto(db: AsyncSession, produto_id: int):
+    stmt = select(Produto).where(Produto.id == produto_id)
+    result = await db.execute(stmt)
+    produto = result.scalar_one_or_none()
     return produto
 
 
-def atualizar_produto(db: Session, produto_id: int, produto: ProdutoUpdate):
-    db_produto = obter_produto(db, produto_id)
+async def atualizar_produto(db: AsyncSession, produto_id: int, produto: ProdutoUpdate):
+    db_produto = await obter_produto(db, produto_id)
     if not db_produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
+
+    # ✅ Verifica se a categoria_id existe, se foi enviada no update
+    if produto.categoria_id is not None:
+        categoria = await db.execute(select(Categoria).filter(Categoria.id == produto.categoria_id))
+        categoria_result = categoria.scalar_one_or_none()
+        if not categoria_result:
+            raise HTTPException(status_code=400, detail="Categoria não encontrada")
 
     try:
         update_data = produto.dict(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_produto, key, value)
-        db.commit()
-        db.refresh(db_produto)
+
+        await db.commit()
+        await db.refresh(db_produto)
         return db_produto
+
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao atualizar produto: {str(e)}")
 
 
-def deletar_produto(db: Session, produto_id: int):
-    db_produto = obter_produto(db, produto_id)
+async def deletar_produto(db: AsyncSession, produto_id: int):
+    db_produto = await obter_produto(db, produto_id)
     if not db_produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
 
     try:
-        db.delete(db_produto)
-        db.commit()
+        await db.delete(db_produto)
+        await db.commit()
         return db_produto
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao deletar produto: {str(e)}")
 
 
-def listar_produtos_por_categoria(db: Session, categoria_id: int, skip: int = 0, limit: int = 100):
-    return db.query(Produto).filter(Produto.categoria_id == categoria_id).offset(skip).limit(limit).all()
+async def listar_produtos_por_categoria(db: AsyncSession, categoria_id: int, skip: int = 0, limit: int = 100):
+    stmt = select(Produto).where(Produto.categoria_id == categoria_id).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    return result.scalars().all()

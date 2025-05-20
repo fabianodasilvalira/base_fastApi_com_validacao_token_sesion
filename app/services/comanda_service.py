@@ -1,4 +1,6 @@
 # app/services/comanda_service.py
+import logging
+
 
 import uuid
 from sqlalchemy import select, or_
@@ -14,7 +16,8 @@ from app.models.fiado import Fiado
 from app.schemas.comanda_schemas import ComandaCreate, ComandaUpdate
 from app.schemas.pagamento_schemas import PagamentoCreateSchema
 from app.schemas.fiado_schemas import FiadoCreate
-
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 async def create_comanda(db: AsyncSession, comanda_data: ComandaCreate) -> Comanda:
     """Cria uma nova comanda no banco de dados."""
@@ -51,26 +54,43 @@ async def create_comanda(db: AsyncSession, comanda_data: ComandaCreate) -> Coman
     return comanda_completa
 
 
+
 async def get_comanda_by_id(db: AsyncSession, comanda_id: int) -> Optional[Comanda]:
-    """Busca uma comanda pelo seu ID."""
-    result = await db.execute(select(Comanda).where(Comanda.id == comanda_id))
-    return result.scalar_one_or_none()
-
-
-async def get_comanda_by_id_detail(db: AsyncSession, comanda_id: int) -> Optional[Comanda]:
-    """Busca uma comanda com detalhes completos (relacionamentos carregados)."""
+    """Busca uma comanda pelo seu ID, carregando relacionamentos para evitar erro de serialização."""
     result = await db.execute(
         select(Comanda)
         .options(
-            joinedload(Comanda.mesa),
-            joinedload(Comanda.cliente),
-            joinedload(Comanda.itens_pedido),
-            joinedload(Comanda.pagamentos),
-            joinedload(Comanda.fiados_registrados),
+            selectinload(Comanda.itens_pedido),
+            selectinload(Comanda.pagamentos),
+            selectinload(Comanda.fiados_registrados)
         )
         .where(Comanda.id == comanda_id)
     )
     return result.scalar_one_or_none()
+
+
+async def get_comanda_by_id_detail(db: AsyncSession, comanda_id: int) -> Optional[Comanda]:
+    try:
+        logger.debug(f"📦 Executando query para comanda_id={comanda_id}")
+        result = await db.execute(
+            select(Comanda)
+            .options(
+                joinedload(Comanda.mesa),
+                joinedload(Comanda.cliente),
+                joinedload(Comanda.itens_pedido),
+                joinedload(Comanda.pagamentos),
+                joinedload(Comanda.fiados_registrados),  # <- ADICIONE ESTA LINHA
+            )
+            .where(Comanda.id == comanda_id)
+        )
+        row = result.unique().one_or_none()
+        if row:
+            return row[0]
+        return None
+    except Exception as e:
+        logger.exception(f"❌ Erro ao buscar comanda: {e}")
+        return None
+
 
 
 async def get_all_comandas_detailed(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[Comanda]:
@@ -157,7 +177,6 @@ async def registrar_saldo_como_fiado(db: AsyncSession, comanda_id: int, fiado_da
         id_cliente=fiado_data.id_cliente,
         valor_original=fiado_data.valor_original,
         valor_devido=fiado_data.valor_devido,
-        data_registro=fiado_data.data_registro,
         observacoes=fiado_data.observacoes
     )
     db.add(novo_fiado)

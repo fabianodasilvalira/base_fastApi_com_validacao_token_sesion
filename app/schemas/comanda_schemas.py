@@ -35,7 +35,7 @@ class ComandaUpdate(BaseModel):
     valor_pago: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     valor_fiado: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     observacoes: Optional[str] = None
-    qr_code_comanda_hash: Optional[str] = None
+    # qr_code_comanda_hash: Optional[str] = None
 
 # Schemas adicionais para relacionamentos
 class ItemPedidoBase(BaseModel):
@@ -78,3 +78,5 @@ class ComandaInResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class QRCodeHashResponse(BaseModel):
+    qr_code_comanda_hash: str

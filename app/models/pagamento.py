@@ -33,7 +33,7 @@ class Pagamento(Base):
     status_pagamento = Column(SAEnum(StatusPagamento), default=StatusPagamento.APROVADO, nullable=False)
     detalhes_transacao = Column(String, nullable=True)
     observacoes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
+    data_pagamento = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     comanda = relationship("Comanda", back_populates="pagamentos")

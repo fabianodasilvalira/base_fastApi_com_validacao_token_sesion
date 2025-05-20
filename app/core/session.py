@@ -1,18 +1,17 @@
 from typing import AsyncGenerator
-
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_session
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager
 from app.core.config.settings import settings
 from loguru import logger
 
-# Engine assíncrono
+# Criação do engine assíncrono
 engine = create_async_engine(
-    str(settings.DATABASE_URL),
+    str(settings.DATABASE_URL),  # Ex: "postgresql+asyncpg://user:pass@host/db"
     pool_pre_ping=True,
 )
 
-# Fábrica de sessão
+# Fábrica de sessões assíncronas
 AsyncSessionFactory = sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -21,9 +20,10 @@ AsyncSessionFactory = sessionmaker(
     autocommit=False,
 )
 
+# Context manager para logs e controle de sessão (opcional)
 @asynccontextmanager
-async def get_db_session():
-    session: AsyncSession = AsyncSessionFactory()
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    session = AsyncSessionFactory()
     try:
         logger.debug(f"DB Session {id(session)} created.")
         yield session
@@ -35,7 +35,7 @@ async def get_db_session():
         logger.debug(f"DB Session {id(session)} closed.")
         await session.close()
 
-# Este é o que você deve importar no auth.py
+# Função principal que você importa no FastAPI com Depends()
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionFactory() as session:
         yield session

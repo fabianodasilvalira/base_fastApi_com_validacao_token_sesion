@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,11 +7,15 @@ from decimal import Decimal
 
 from app.core.session import get_db
 from app.models import Cliente, Mesa
-from app.schemas.comanda_schemas import ComandaCreate, ComandaUpdate, ComandaInResponse, StatusComanda
+from app.schemas.comanda_schemas import ComandaCreate, ComandaUpdate, ComandaInResponse, StatusComanda, \
+    QRCodeHashResponse
 from app.schemas.pagamento_schemas import PagamentoCreateSchema
 from app.schemas.fiado_schemas import FiadoCreate
 from app.services import comanda_service
-from app.services.comanda_service import get_all_comandas_detailed
+from app.services.comanda_service import get_all_comandas_detailed, get_comanda_by_id_detail
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
 
@@ -38,13 +43,23 @@ async def criar_comanda(
 
 @router.get("/{comanda_id}", response_model=ComandaInResponse)
 async def obter_comanda_por_id(comanda_id: int, db_session: AsyncSession = Depends(get_db)):
-    """
-    Retorna os detalhes de uma comanda pelo ID.
-    """
-    db_comanda = await comanda_service.get_comanda_by_id_detail(db=db_session, comanda_id=comanda_id)
+    logger.info(f"🔍 Buscando comanda com ID {comanda_id}")
+    db_comanda = await get_comanda_by_id_detail(db_session, comanda_id)
+
     if not db_comanda:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comanda não encontrada")
-    return db_comanda
+        logger.warning(f"⚠️ Comanda com ID {comanda_id} não encontrada.")
+        raise HTTPException(status_code=404, detail="Comanda não encontrada")
+
+    logger.info(f"✅ Comanda encontrada: {db_comanda}")
+
+    # Validar com from_attributes
+    try:
+        response = ComandaInResponse.model_validate(db_comanda)
+        logger.info("🧾 Comanda serializada com sucesso.")
+        return response
+    except Exception as e:
+        logger.error(f"❌ Erro ao serializar a comanda: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao processar a resposta")
 
 
 @router.get("/", response_model=List[ComandaInResponse])
@@ -133,13 +148,17 @@ async def fechar_comanda(comanda_id: int, db_session: AsyncSession = Depends(get
     return updated_comanda
 
 
-@router.post("/{comanda_id}/qrcode", response_model=ComandaInResponse)
+@router.post("/{comanda_id}/qrcode", response_model=QRCodeHashResponse)
 async def gerar_qrcode(comanda_id: int, db_session: AsyncSession = Depends(get_db)):
     """
-    Gera ou retorna o QRCode da comanda.
+    Retorna o hash do QRCode da comanda (gera se ainda não existir).
     """
     comanda = await comanda_service.gerar_ou_obter_qrcode_comanda(db_session, comanda_id)
+
     if not comanda or not comanda.qr_code_comanda_hash:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Não foi possível gerar ou obter o QRCode para a comanda.")
-    return comanda
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Não foi possível gerar ou obter o QRCode para a comanda."
+        )
+
+    return {"qr_code_comanda_hash": comanda.qr_code_comanda_hash}
