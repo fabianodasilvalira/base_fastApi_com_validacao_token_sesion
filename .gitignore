@@ -74,7 +74,7 @@ docker-compose.override.yml
 
 # FastAPI generated static/docs
 /static/
-docs/
+
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
