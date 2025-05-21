@@ -4,35 +4,33 @@ from sqlalchemy import update, delete
 from fastapi import HTTPException, status
 from decimal import Decimal
 from typing import List, Optional, Tuple, Dict, Any
-import uuid
 from datetime import datetime
 
-from app.models.pedido import Pedido as PedidoModel, StatusPedido, TipoPedido
-from app.models.item_pedido import ItemPedido as ItemPedidoModel
+from sqlalchemy.orm import selectinload
+
+from app.models.pedido import Pedido as PedidoModel, StatusPedido
+from app.models.item_pedido import ItemPedido as ItemPedidoModel, StatusPedidoEnum
 from app.models.produto import Produto as ProdutoModel
 from app.models.comanda import Comanda as ComandaModel, StatusComanda
 from app.models.mesa import Mesa as MesaModel
-from app.schemas.comanda_schemas import ComandaCreate
 
-from app.schemas.pedido_schemas import (
-    PedidoCreate, Pedido, ItemPedidoCreate, ItemPedido, StatusPedido as SchemaStatusPedido
-)
-from app.schemas.public_pedido_schemas import (
-    PedidoPublicCreateSchema, ItemPedidoPublicCreateSchema,
-    PedidoPublicResponseSchema, ItemPedidoPublicResponseSchema
-)
-
+from app.schemas.pedido_schemas import PedidoCreate, Pedido
+from app.schemas.item_pedido_schemas import ItemPedido as ItemPedidoSchema
 from app.services import comanda_service, produto_service
+
 from app.services.redis_service import redis_service_instance, WebSocketMessage
 from app.schemas.websocket_schemas import ComandaStatusUpdatePayload, NotificationPayload
 
 from loguru import logger
 
+from app.services.user_service import user_service, UserService
+
 
 class PedidoService:
-    async def criar_pedido(self, db: AsyncSession, pedido_data: PedidoCreate) -> PedidoModel:
+    async def criar_pedido(self, db: AsyncSession, pedido_data: PedidoCreate) -> Dict[str, Any]:
         """
         Cria um novo pedido com seus itens associados.
+        Retorna um dicionário com os dados do pedido e seus itens para serialização segura.
         """
         # Verificar se a comanda existe
         comanda = await comanda_service.get_comanda_by_id(db, pedido_data.id_comanda)
@@ -42,12 +40,20 @@ class PedidoService:
                 detail=f"Comanda com ID {pedido_data.id_comanda} não encontrada"
             )
 
-        # Verificar se a comanda está em um estado que permite novos pedidos
-        if comanda.status_comanda not in [StatusComanda.ABERTA, StatusComanda.EM_ATENDIMENTO]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"A comanda {comanda.id} não permite novos pedidos (Status: {comanda.status_comanda.value})"
-            )
+        # if comanda.status_comanda != StatusComanda.ABERTA:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_400_BAD_REQUEST,
+        #         detail=f"A comanda {comanda.id} não permite novos pedidos (Status: {comanda.status_comanda.value})"
+        #     )
+
+        # Verificar se o usuário existe
+        if pedido_data.id_usuario_registrou:
+            usuario = await user_service.get_user_by_id(db, pedido_data.id_usuario_registrou)
+            if not usuario:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Usuário com ID {pedido_data.id_usuario_registrou} não encontrado"
+                )
 
         # Criar o pedido
         novo_pedido = PedidoModel(
@@ -64,10 +70,14 @@ class PedidoService:
         db.add(novo_pedido)
         await db.flush()  # Para obter o ID do pedido
 
+        # Lista para armazenar os itens criados
+        itens_criados = []
+
         # Criar os itens do pedido
         for item_data in pedido_data.itens:
             # Verificar se o produto existe
-            produto = await produto_service.get_produto_by_id(db, item_data.id_produto)
+            # Corrigido para usar o método correto obter_produto em vez de get_produto_by_id
+            produto = await produto_service.obter_produto(db, item_data.id_produto)
             if not produto:
                 # Rollback e lançar exceção
                 await db.rollback()
@@ -83,27 +93,50 @@ class PedidoService:
                     detail=f"O produto '{produto.nome}' não está disponível no momento"
                 )
 
-            # Calcular o preço total do item
-            preco_total_item = item_data.preco_unitario * item_data.quantidade
+            # Obter o preço unitário diretamente do produto
+            preco_unitario = produto.preco_unitario
+
+            # Calcular o preço total do item usando o preço do produto
+            preco_total_item = preco_unitario * item_data.quantidade
 
             # Criar o item do pedido
             novo_item = ItemPedidoModel(
                 id_pedido=novo_pedido.id,
+                id_comanda=pedido_data.id_comanda,
                 id_produto=item_data.id_produto,
                 quantidade=item_data.quantidade,
-                preco_unitario=item_data.preco_unitario,
-                preco_total_item=preco_total_item,
-                observacao=item_data.observacao,
-                status_item_pedido=item_data.status_item_pedido,
+                preco_unitario=preco_unitario,  # Usando o preço do produto
+                preco_total=preco_unitario * item_data.quantidade,  # Calculando o preço total
+                observacoes=item_data.observacoes,  # Corrigido para observacoes (plural)
+                status=StatusPedidoEnum.RECEBIDO,  # Definindo status inicial
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             )
 
+            # Garantir que o preço total seja calculado corretamente
+            novo_item.calcular_preco_total()
+
             db.add(novo_item)
 
-        # Atualizar o status da comanda para EM_ATENDIMENTO se estiver ABERTA
+            # Armazenar dados do item para retorno
+            itens_criados.append({
+                "id": None,  # Será atualizado após o commit
+                "id_pedido": novo_pedido.id,
+                "id_comanda": pedido_data.id_comanda,  # Adicionado campo id_comanda
+                "id_produto": item_data.id_produto,
+                "quantidade": item_data.quantidade,
+                "preco_unitario": float(preco_unitario),
+                "preco_total": float(preco_total_item),
+                "observacoes": item_data.observacoes,
+                "status": StatusPedidoEnum.RECEBIDO.value,  # Adicionado campo status
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat()  # Adicionado campo updated_at
+            })
+
+        # Atualizar o status da comanda para PAGA_PARCIALMENTE se estiver ABERTA
+        # Corrigido para usar um status válido do enum StatusComanda
         if comanda.status_comanda == StatusComanda.ABERTA:
-            comanda.status_comanda = StatusComanda.EM_ATENDIMENTO
+            comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
             comanda.updated_at = datetime.now()
 
         # Recalcular o valor total da comanda
@@ -111,12 +144,53 @@ class PedidoService:
 
         # Commit das alterações
         await db.commit()
-        await db.refresh(novo_pedido)
+
+        # Buscar o pedido com seus itens carregados para retorno seguro
+        query = (
+            select(PedidoModel)
+            .options(selectinload(PedidoModel.itens))
+            .where(PedidoModel.id == novo_pedido.id)
+        )
+
+        result = await db.execute(query)
+        pedido_completo = result.scalars().first()
+
+        # Converter para dicionário para evitar acesso lazy fora do contexto assíncrono
+        pedido_dict = {
+            "id": pedido_completo.id,
+            "id_comanda": pedido_completo.id_comanda,
+            "id_usuario_registrou": pedido_completo.id_usuario_registrou,
+            "mesa_id": pedido_completo.mesa_id,  # Adicionado campo mesa_id
+            "tipo_pedido": pedido_completo.tipo_pedido.value,
+            "status_geral_pedido": pedido_completo.status_geral_pedido.value,
+            "observacoes_pedido": pedido_completo.observacoes_pedido,
+            "motivo_cancelamento": pedido_completo.motivo_cancelamento,  # Adicionado campo motivo_cancelamento
+            "created_at": pedido_completo.created_at.isoformat() if pedido_completo.created_at else None,
+            "updated_at": pedido_completo.updated_at.isoformat() if pedido_completo.updated_at else None,
+            "itens": []
+        }
+
+        # Adicionar itens ao dicionário
+        for item in pedido_completo.itens:
+            item_dict = {
+                "id": item.id,
+                "id_pedido": item.id_pedido,
+                "id_comanda": item.id_comanda,  # Adicionado campo id_comanda
+                "id_produto": item.id_produto,
+                "quantidade": item.quantidade,
+                "preco_unitario": float(item.preco_unitario),
+                "preco_total": float(item.preco_total),
+                "observacoes": item.observacoes,
+                "status": item.status.value,  # Adicionado campo status
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+                "updated_at": item.updated_at.isoformat() if item.updated_at else None  # Adicionado campo updated_at
+            }
+            pedido_dict["itens"].append(item_dict)
 
         # Notificar sobre o novo pedido
-        await self._notificar_novo_pedido(novo_pedido)
+        await self._notificar_novo_pedido(pedido_completo)
 
-        return novo_pedido
+        return pedido_dict
 
     async def listar_pedidos(
             self,
@@ -124,11 +198,15 @@ class PedidoService:
             status: Optional[str] = None,
             data_inicio: Optional[str] = None,
             data_fim: Optional[str] = None
-    ) -> List[PedidoModel]:
+    ) -> List[Dict[str, Any]]:
         """
         Lista pedidos com filtros opcionais.
+        Retorna uma lista de dicionários com os dados dos pedidos para serialização segura.
         """
-        query = select(PedidoModel)
+        query = (
+            select(PedidoModel)
+            .options(selectinload(PedidoModel.itens))
+        )
 
         # Aplicar filtros
         if status:
@@ -159,28 +237,131 @@ class PedidoService:
         query = query.order_by(PedidoModel.created_at.desc())
 
         result = await db.execute(query)
-        return result.scalars().all()
+        pedidos = result.scalars().all()
 
-    async def buscar_pedido(self, db: AsyncSession, pedido_id: int) -> Optional[PedidoModel]:
+        # Converter para lista de dicionários
+        pedidos_list = []
+        for pedido in pedidos:
+            pedido_dict = {
+                "id": pedido.id,
+                "id_comanda": pedido.id_comanda,
+                "id_usuario_registrou": pedido.id_usuario_registrou,
+                "mesa_id": pedido.mesa_id,  # Adicionado campo mesa_id
+                "tipo_pedido": pedido.tipo_pedido.value,
+                "status_geral_pedido": pedido.status_geral_pedido.value,
+                "observacoes_pedido": pedido.observacoes_pedido,
+                "motivo_cancelamento": pedido.motivo_cancelamento,  # Adicionado campo motivo_cancelamento
+                "created_at": pedido.created_at.isoformat() if pedido.created_at else None,
+                "updated_at": pedido.updated_at.isoformat() if pedido.updated_at else None,
+                "itens": []
+            }
+
+            # Adicionar itens ao dicionário
+            for item in pedido.itens:
+                item_dict = {
+                    "id": item.id,
+                    "id_pedido": item.id_pedido,
+                    "id_comanda": item.id_comanda,  # Adicionado campo id_comanda
+                    "id_produto": item.id_produto,
+                    "quantidade": item.quantidade,
+                    "preco_unitario": float(item.preco_unitario),
+                    "preco_total": float(item.preco_total),
+                    "observacoes": item.observacoes,
+                    "status": item.status.value,  # Adicionado campo status
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "updated_at": item.updated_at.isoformat() if item.updated_at else None
+                    # Adicionado campo updated_at
+                }
+                pedido_dict["itens"].append(item_dict)
+
+            pedidos_list.append(pedido_dict)
+
+        return pedidos_list
+
+    async def buscar_pedido(self, db: AsyncSession, pedido_id: int) -> Dict[str, Any]:
         """
-        Busca um pedido pelo ID.
+        Busca um pedido pelo ID com seus itens carregados.
+        Retorna um dicionário com os dados do pedido e seus itens para serialização segura.
         """
-        query = select(PedidoModel).where(PedidoModel.id == pedido_id)
+        if not pedido_id or pedido_id <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="ID de pedido inválido"
+            )
+
+        query = (
+            select(PedidoModel)
+            .options(selectinload(PedidoModel.itens))
+            .where(PedidoModel.id == pedido_id)
+        )
+
         result = await db.execute(query)
-        return result.scalars().first()
+        pedido = result.scalars().first()
+
+        if not pedido:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Pedido com ID {pedido_id} não encontrado"
+            )
+
+        # Converter para dicionário para evitar acesso lazy fora do contexto assíncrono
+        pedido_dict = {
+            "id": pedido.id,
+            "id_comanda": pedido.id_comanda,
+            "id_usuario_registrou": pedido.id_usuario_registrou,
+            "mesa_id": pedido.mesa_id,  # Adicionado campo mesa_id
+            "tipo_pedido": pedido.tipo_pedido.value,
+            "status_geral_pedido": pedido.status_geral_pedido.value,
+            "observacoes_pedido": pedido.observacoes_pedido,
+            "motivo_cancelamento": pedido.motivo_cancelamento,  # Adicionado campo motivo_cancelamento
+            "created_at": pedido.created_at.isoformat() if pedido.created_at else None,
+            "updated_at": pedido.updated_at.isoformat() if pedido.updated_at else None,
+            "itens": []
+        }
+
+        # Adicionar itens ao dicionário
+        for item in pedido.itens:
+            item_dict = {
+                "id": item.id,
+                "id_pedido": item.id_pedido,
+                "id_comanda": item.id_comanda,  # Adicionado campo id_comanda
+                "id_produto": item.id_produto,
+                "quantidade": item.quantidade,
+                "preco_unitario": float(item.preco_unitario),
+                "preco_total": float(item.preco_total),
+                "observacoes": item.observacoes,
+                "status": item.status.value,  # Adicionado campo status
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+                "updated_at": item.updated_at.isoformat() if item.updated_at else None  # Adicionado campo updated_at
+            }
+            pedido_dict["itens"].append(item_dict)
+
+        return pedido_dict
 
     async def atualizar_status_pedido(
             self,
             db: AsyncSession,
             pedido_id: int,
-            novo_status: SchemaStatusPedido
-    ) -> Tuple[Optional[PedidoModel], str]:
+            novo_status: StatusPedido
+    ) -> Tuple[Optional[Dict[str, Any]], str]:
         """
         Atualiza o status de um pedido.
-        Retorna o pedido atualizado e uma mensagem de sucesso ou erro.
+        Retorna o pedido atualizado como dicionário e uma mensagem de sucesso ou erro.
         """
+        # Validar ID
+        if not pedido_id or pedido_id <= 0:
+            return None, "ID de pedido inválido"
+
         # Buscar o pedido
-        pedido = await self.buscar_pedido(db, pedido_id)
+        query = (
+            select(PedidoModel)
+            .options(selectinload(PedidoModel.itens))
+            .where(PedidoModel.id == pedido_id)
+        )
+
+        result = await db.execute(query)
+        pedido = result.scalars().first()
+
         if not pedido:
             return None, f"Pedido com ID {pedido_id} não encontrado"
 
@@ -193,9 +374,9 @@ class PedidoService:
         pedido.updated_at = datetime.now()
 
         # Se o pedido for cancelado, cancelar todos os itens
-        if novo_status == SchemaStatusPedido.CANCELADO:
+        if novo_status == StatusPedido.CANCELADO:
             for item in pedido.itens:
-                item.status_item_pedido = SchemaStatusPedido.CANCELADO
+                item.status = StatusPedidoEnum.CANCELADO
                 item.updated_at = datetime.now()
 
         # Commit das alterações
@@ -205,156 +386,137 @@ class PedidoService:
         # Notificar sobre a atualização de status
         await self._notificar_atualizacao_status_pedido(pedido)
 
-        return pedido, f"Status do pedido atualizado para {novo_status.value}"
+        # Converter para dicionário para evitar acesso lazy fora do contexto assíncrono
+        pedido_dict = {
+            "id": pedido.id,
+            "id_comanda": pedido.id_comanda,
+            "id_usuario_registrou": pedido.id_usuario_registrou,
+            "mesa_id": pedido.mesa_id,  # Adicionado campo mesa_id
+            "tipo_pedido": pedido.tipo_pedido.value,
+            "status_geral_pedido": pedido.status_geral_pedido.value,
+            "observacoes_pedido": pedido.observacoes_pedido,
+            "motivo_cancelamento": pedido.motivo_cancelamento,  # Adicionado campo motivo_cancelamento
+            "created_at": pedido.created_at.isoformat() if pedido.created_at else None,
+            "updated_at": pedido.updated_at.isoformat() if pedido.updated_at else None,
+            "itens": []
+        }
 
-    async def adicionar_item(
-            self,
-            db: AsyncSession,
-            pedido_id: int,
-            item_data: ItemPedidoCreate
-    ) -> Optional[ItemPedidoModel]:
-        """
-        Adiciona um item a um pedido existente.
-        """
-        # Buscar o pedido
-        pedido = await self.buscar_pedido(db, pedido_id)
-        if not pedido:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Pedido com ID {pedido_id} não encontrado"
-            )
+        # Adicionar itens ao dicionário
+        for item in pedido.itens:
+            item_dict = {
+                "id": item.id,
+                "id_pedido": item.id_pedido,
+                "id_comanda": item.id_comanda,  # Adicionado campo id_comanda
+                "id_produto": item.id_produto,
+                "quantidade": item.quantidade,
+                "preco_unitario": float(item.preco_unitario),
+                "preco_total": float(item.preco_total),
+                "observacoes": item.observacoes,
+                "status": item.status.value,  # Adicionado campo status
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+                "updated_at": item.updated_at.isoformat() if item.updated_at else None  # Adicionado campo updated_at
+            }
+            pedido_dict["itens"].append(item_dict)
 
-        # Verificar se o pedido está em um estado que permite adicionar itens
-        if pedido.status_geral_pedido not in [StatusPedido.RECEBIDO, StatusPedido.EM_PREPARO]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"O pedido está em status {pedido.status_geral_pedido.value} e não permite adicionar novos itens"
-            )
+        return pedido_dict, f"Status do pedido atualizado para {novo_status.value}"
 
-        # Verificar se o produto existe
-        produto = await produto_service.get_produto_by_id(db, item_data.id_produto)
-        if not produto:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Produto com ID {item_data.id_produto} não encontrado"
-            )
-
-        if not produto.disponivel:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"O produto '{produto.nome}' não está disponível no momento"
-            )
-
-        # Calcular o preço total do item
-        preco_total_item = item_data.preco_unitario * item_data.quantidade
-
-        # Criar o item do pedido
-        novo_item = ItemPedidoModel(
-            id_pedido=pedido_id,
-            id_produto=item_data.id_produto,
-            quantidade=item_data.quantidade,
-            preco_unitario=item_data.preco_unitario,
-            preco_total_item=preco_total_item,
-            observacao=item_data.observacao,
-            status_item_pedido=item_data.status_item_pedido,
-            created_at=datetime.now(),
-            updated_at=datetime.now()
-        )
-
-        db.add(novo_item)
-
-        # Recalcular o valor total da comanda
-        await comanda_service.recalculate_comanda_totals(db, pedido.id_comanda)
-
-        # Commit das alterações
-        await db.commit()
-        await db.refresh(novo_item)
-
-        # Notificar sobre o novo item
-        await self._notificar_novo_item_pedido(pedido, novo_item)
-
-        return novo_item
-
-    async def remover_item(self, db: AsyncSession, pedido_id: int, item_id: int) -> bool:
-        """
-        Remove um item de um pedido.
-        """
-        # Buscar o pedido
-        pedido = await self.buscar_pedido(db, pedido_id)
-        if not pedido:
-            return False
-
-        # Verificar se o pedido está em um estado que permite remover itens
-        if pedido.status_geral_pedido not in [StatusPedido.RECEBIDO, StatusPedido.EM_PREPARO]:
-            return False
-
-        # Buscar o item
-        query = select(ItemPedidoModel).where(
-            (ItemPedidoModel.id == item_id) &
-            (ItemPedidoModel.id_pedido == pedido_id)
-        )
-        result = await db.execute(query)
-        item = result.scalars().first()
-
-        if not item:
-            return False
-
-        # Remover o item
-        await db.execute(
-            delete(ItemPedidoModel).where(
-                (ItemPedidoModel.id == item_id) &
-                (ItemPedidoModel.id_pedido == pedido_id)
-            )
-        )
-
-        # Recalcular o valor total da comanda
-        await comanda_service.recalculate_comanda_totals(db, pedido.id_comanda)
-
-        # Commit das alterações
-        await db.commit()
-
-        # Notificar sobre a remoção do item
-        await self._notificar_remocao_item_pedido(pedido, item)
-
-        return True
-
-    async def cancelar_pedido(self, db: AsyncSession, pedido_id: int) -> Optional[PedidoModel]:
+    async def cancelar_pedido(self, db: AsyncSession, pedido_id: int) -> Optional[Dict[str, Any]]:
         """
         Cancela um pedido e todos os seus itens.
+        Retorna o pedido cancelado como dicionário.
         """
-        pedido, mensagem = await self.atualizar_status_pedido(
-            db, pedido_id, SchemaStatusPedido.CANCELADO
+        # Validar ID
+        if not pedido_id or pedido_id <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="ID de pedido inválido"
+            )
+
+        pedido_dict, mensagem = await self.atualizar_status_pedido(
+            db, pedido_id, StatusPedido.CANCELADO
         )
-        return pedido
+
+        if not pedido_dict:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=mensagem
+            )
+
+        return pedido_dict
 
     async def listar_pedidos_por_usuario(
             self,
             db: AsyncSession,
             usuario_id: int
-    ) -> List[PedidoModel]:
+    ) -> List[Dict[str, Any]]:
         """
         Lista pedidos registrados por um usuário específico.
+        Retorna uma lista de dicionários com os dados dos pedidos para serialização segura.
         """
-        query = select(PedidoModel).where(PedidoModel.id_usuario_registrou == usuario_id)
-        query = query.order_by(PedidoModel.created_at.desc())
+        # Validar ID
+        if not usuario_id or usuario_id <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="ID de usuário inválido"
+            )
+
+        query = (
+            select(PedidoModel)
+            .options(selectinload(PedidoModel.itens))
+            .where(PedidoModel.id_usuario_registrou == usuario_id)
+            .order_by(PedidoModel.created_at.desc())
+        )
 
         result = await db.execute(query)
-        return result.scalars().all()
+        pedidos = result.scalars().all()
+
+        # Converter para lista de dicionários
+        pedidos_list = []
+        for pedido in pedidos:
+            pedido_dict = {
+                "id": pedido.id,
+                "id_comanda": pedido.id_comanda,
+                "id_usuario_registrou": pedido.id_usuario_registrou,
+                "mesa_id": pedido.mesa_id,  # Adicionado campo mesa_id
+                "tipo_pedido": pedido.tipo_pedido.value,
+                "status_geral_pedido": pedido.status_geral_pedido.value,
+                "observacoes_pedido": pedido.observacoes_pedido,
+                "motivo_cancelamento": pedido.motivo_cancelamento,  # Adicionado campo motivo_cancelamento
+                "created_at": pedido.created_at.isoformat() if pedido.created_at else None,
+                "updated_at": pedido.updated_at.isoformat() if pedido.updated_at else None,
+                "itens": []
+            }
+
+            # Adicionar itens ao dicionário
+            for item in pedido.itens:
+                item_dict = {
+                    "id": item.id,
+                    "id_pedido": item.id_pedido,
+                    "id_comanda": item.id_comanda,  # Adicionado campo id_comanda
+                    "id_produto": item.id_produto,
+                    "quantidade": item.quantidade,
+                    "preco_unitario": float(item.preco_unitario),
+                    "preco_total": float(item.preco_total),
+                    "observacoes": item.observacoes,
+                    "status": item.status.value,  # Adicionado campo status
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "updated_at": item.updated_at.isoformat() if item.updated_at else None
+                    # Adicionado campo updated_at
+                }
+                pedido_dict["itens"].append(item_dict)
+
+            pedidos_list.append(pedido_dict)
+
+        return pedidos_list
 
     def _validar_transicao_status(
             self,
             status_atual: StatusPedido,
-            novo_status: SchemaStatusPedido
+            novo_status: StatusPedido
     ) -> bool:
         """
         Valida se a transição de status é permitida.
         """
-        # Converter o SchemaStatusPedido para StatusPedido do modelo
-        try:
-            novo_status_model = StatusPedido(novo_status.value)
-        except ValueError:
-            return False
-
         # Definir transições válidas
         transicoes_validas = {
             StatusPedido.RECEBIDO: [
@@ -383,16 +545,15 @@ class PedidoService:
             StatusPedido.CANCELADO: []  # Não permite transição a partir de CANCELADO
         }
 
-        return novo_status_model in transicoes_validas.get(status_atual, [])
+        return novo_status in transicoes_validas.get(status_atual, [])
 
     async def _notificar_novo_pedido(self, pedido: PedidoModel) -> None:
         """
         Notifica sobre um novo pedido.
         """
         try:
-            # Obter informações da mesa
-            mesa = await self._get_mesa_info(pedido.mesa_id)
-            mesa_numero = mesa.numero if mesa else str(pedido.mesa_id)
+            # Definir mesa_numero sem necessidade de consulta ao banco
+            mesa_numero = "N/A"
 
             # Preparar payload da notificação
             payload = NotificationPayload(
@@ -401,7 +562,7 @@ class PedidoService:
                 details={
                     "pedido_id": str(pedido.id),
                     "comanda_id": str(pedido.id_comanda),
-                    "mesa_id": str(pedido.mesa_id),
+                    "mesa_id": str(pedido.mesa_id) if pedido.mesa_id else "N/A",
                     "mesa_numero": mesa_numero,
                     "tipo_pedido": pedido.tipo_pedido.value,
                     "status": pedido.status_geral_pedido.value
@@ -421,9 +582,8 @@ class PedidoService:
         Notifica sobre atualização de status de um pedido.
         """
         try:
-            # Obter informações da mesa
-            mesa = await self._get_mesa_info(pedido.mesa_id)
-            mesa_numero = mesa.numero if mesa else str(pedido.mesa_id)
+            # Definir mesa_numero sem necessidade de consulta ao banco
+            mesa_numero = "N/A"
 
             # Preparar payload da notificação
             payload = NotificationPayload(
@@ -432,7 +592,7 @@ class PedidoService:
                 details={
                     "pedido_id": str(pedido.id),
                     "comanda_id": str(pedido.id_comanda),
-                    "mesa_id": str(pedido.mesa_id),
+                    "mesa_id": str(pedido.mesa_id) if pedido.mesa_id else "N/A",
                     "mesa_numero": mesa_numero,
                     "tipo_pedido": pedido.tipo_pedido.value,
                     "status": pedido.status_geral_pedido.value
@@ -442,262 +602,11 @@ class PedidoService:
             # Publicar mensagem
             await redis_service_instance.publish_message(
                 channel="staff_notifications",
-                message=WebSocketMessage(type="atualizacao_status_pedido", payload=payload.model_dump())
-            )
-
-            # Notificar também o canal específico da comanda
-            payload_comanda = ComandaStatusUpdatePayload(
-                comanda_id=str(pedido.id_comanda),
-                status_comanda="EM_ATENDIMENTO",  # A comanda continua em atendimento
-                message=f"Status do pedido atualizado para {pedido.status_geral_pedido.value}"
-            )
-
-            await redis_service_instance.publish_message(
-                channel=f"comanda_status:{pedido.id_comanda}",
-                message=WebSocketMessage(type="status_update", payload=payload_comanda.model_dump())
+                message=WebSocketMessage(type="status_pedido_atualizado", payload=payload.model_dump())
             )
         except Exception as e:
-            logger.error(f"Erro ao notificar atualização de status do pedido: {str(e)}")
-
-    async def _notificar_novo_item_pedido(self, pedido: PedidoModel, item: ItemPedidoModel) -> None:
-        """
-        Notifica sobre um novo item adicionado a um pedido.
-        """
-        try:
-            # Obter informações do produto
-            produto = await produto_service.get_produto_by_id(None, item.id_produto)
-            produto_nome = produto.nome if produto else f"Produto {item.id_produto}"
-
-            # Obter informações da mesa
-            mesa = await self._get_mesa_info(pedido.mesa_id)
-            mesa_numero = mesa.numero if mesa else str(pedido.mesa_id)
-
-            # Preparar payload da notificação
-            payload = NotificationPayload(
-                title="Novo Item Adicionado ao Pedido",
-                message=f"Mesa {mesa_numero}: {item.quantidade}x {produto_nome} adicionado ao pedido {pedido.id}",
-                details={
-                    "pedido_id": str(pedido.id),
-                    "comanda_id": str(pedido.id_comanda),
-                    "mesa_id": str(pedido.mesa_id),
-                    "mesa_numero": mesa_numero,
-                    "item_id": str(item.id),
-                    "produto_id": str(item.id_produto),
-                    "produto_nome": produto_nome,
-                    "quantidade": item.quantidade,
-                    "status_item": item.status_item_pedido.value
-                }
-            )
-
-            # Publicar mensagem
-            await redis_service_instance.publish_message(
-                channel="staff_notifications",
-                message=WebSocketMessage(type="novo_item_pedido", payload=payload.model_dump())
-            )
-        except Exception as e:
-            logger.error(f"Erro ao notificar novo item de pedido: {str(e)}")
-
-    async def _notificar_remocao_item_pedido(self, pedido: PedidoModel, item: ItemPedidoModel) -> None:
-        """
-        Notifica sobre a remoção de um item de um pedido.
-        """
-        try:
-            # Obter informações do produto
-            produto = await produto_service.get_produto_by_id(None, item.id_produto)
-            produto_nome = produto.nome if produto else f"Produto {item.id_produto}"
-
-            # Obter informações da mesa
-            mesa = await self._get_mesa_info(pedido.mesa_id)
-            mesa_numero = mesa.numero if mesa else str(pedido.mesa_id)
-
-            # Preparar payload da notificação
-            payload = NotificationPayload(
-                title="Item Removido do Pedido",
-                message=f"Mesa {mesa_numero}: {item.quantidade}x {produto_nome} removido do pedido {pedido.id}",
-                details={
-                    "pedido_id": str(pedido.id),
-                    "comanda_id": str(pedido.id_comanda),
-                    "mesa_id": str(pedido.mesa_id),
-                    "mesa_numero": mesa_numero,
-                    "item_id": str(item.id),
-                    "produto_id": str(item.id_produto),
-                    "produto_nome": produto_nome,
-                    "quantidade": item.quantidade
-                }
-            )
-
-            # Publicar mensagem
-            await redis_service_instance.publish_message(
-                channel="staff_notifications",
-                message=WebSocketMessage(type="remocao_item_pedido", payload=payload.model_dump())
-            )
-        except Exception as e:
-            logger.error(f"Erro ao notificar remoção de item de pedido: {str(e)}")
-
-    async def _get_mesa_info(self, mesa_id: int) -> Optional[MesaModel]:
-        """
-        Obtém informações da mesa.
-        """
-        # Esta função deveria buscar a mesa no banco de dados
-        # Como é um placeholder, retornamos None
-        return None
+            logger.error(f"Erro ao notificar atualização de status de pedido: {str(e)}")
 
 
-# Função para processar pedidos públicos (via QRCode)
-async def processar_pedido_publico(
-        db: AsyncSession,
-        mesa_id: int,
-        pedido_public_data: PedidoPublicCreateSchema,
-        mesa_numero: Optional[str] = None
-, item_pedido_service=ItemPedido) -> PedidoPublicResponseSchema:
-    """
-    Processa um pedido feito por um cliente através da interface pública (QRCode da mesa).
-    1. Encontra ou cria uma comanda ativa para a mesa.
-    2. Valida os produtos solicitados.
-    3. Adiciona os itens à comanda.
-    4. Recalcula o total da comanda.
-    5. Notifica a equipe sobre o novo pedido/itens.
-    6. Retorna uma confirmação para o cliente.
-    """
-
-    # 1. Encontrar ou criar uma comanda ativa para a mesa
-    comanda_ativa = await comanda_service.get_active_comanda_by_mesa_id(db, mesa_id)
-
-    if not comanda_ativa:
-        # Se não houver comanda ativa, criar uma nova
-        nova_comanda_data = ComandaCreate(
-            id_mesa=mesa_id,
-            id_cliente=None,
-            id_usuario_abriu=None,
-            status_comanda=StatusComanda.ABERTA,
-            observacoes="Comanda aberta via QRCode pelo cliente."
-        )
-        comanda_ativa = await comanda_service.create_comanda(db, comanda_data=nova_comanda_data)
-        if not comanda_ativa:
-            logger.error(f"Falha ao criar nova comanda para mesa_id: {mesa_id}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Não foi possível iniciar uma nova comanda para sua mesa."
-            )
-        logger.info(f"Nova comanda {comanda_ativa.id} criada para mesa {mesa_id} via QRCode.")
-    elif comanda_ativa.status_comanda not in [StatusComanda.ABERTA, StatusComanda.EM_ATENDIMENTO]:
-        logger.warning(
-            f"Tentativa de adicionar itens à comanda {comanda_ativa.id} (mesa {mesa_id}) com status {comanda_ativa.status_comanda}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"A comanda atual da mesa não permite novos itens (Status: {comanda_ativa.status_comanda.value}). Chame um garçom."
-        )
-
-    itens_confirmados_response: List[ItemPedidoPublicResponseSchema] = []
-    valor_total_novos_itens = Decimal(0)
-
-    # 2. Validar produtos e 3. Adicionar itens à comanda
-    if not pedido_public_data.itens:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nenhum item fornecido no pedido."
-        )
-
-    for item_data in pedido_public_data.itens:
-        produto = await produto_service.get_produto_by_id(db, item_data.produto_id)
-        if not produto:
-            logger.warning(
-                f"Produto com ID {item_data.produto_id} não encontrado ao processar pedido para comanda {comanda_ativa.id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Produto com ID {item_data.produto_id} não encontrado no cardápio."
-            )
-
-        if not produto.disponivel:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"O produto '{produto.nome}' não está disponível no momento."
-            )
-
-        preco_unitario_item = produto.preco_venda
-        preco_total_item_calculado = preco_unitario_item * item_data.quantidade
-
-        novo_item_pedido_data = ItemPedidoCreate(
-            id_comanda=comanda_ativa.id,
-            id_produto=item_data.produto_id,
-            quantidade=item_data.quantidade,
-            preco_unitario=preco_unitario_item,
-            observacao=item_data.observacao,
-            status_item_pedido=StatusPedido.RECEBIDO
-        )
-
-        item_criado = await item_pedido_service.create_item_pedido(db, item_pedido_data=novo_item_pedido_data)
-        if not item_criado:
-            logger.error(
-                f"Falha ao criar item_pedido para produto {item_data.produto_id} na comanda {comanda_ativa.id}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro ao adicionar o produto '{produto.nome}' ao seu pedido."
-            )
-
-        valor_total_novos_itens += preco_total_item_calculado
-        itens_confirmados_response.append(
-            ItemPedidoPublicResponseSchema(
-                produto_nome=produto.nome,
-                quantidade=item_data.quantidade,
-                preco_unitario=preco_unitario_item,
-                preco_total_item=preco_total_item_calculado,
-                observacao=item_data.observacao
-            )
-        )
-
-    # 4. Recalcular o valor total da comanda e atualizar status
-    comanda_atualizada = await comanda_service.recalculate_comanda_totals_and_update_status(
-        db, comanda_id=comanda_ativa.id
-    )
-    if not comanda_atualizada:
-        logger.error(f"Falha ao recalcular totais para comanda {comanda_ativa.id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao finalizar o processamento do seu pedido."
-        )
-
-    # 5. Notificar a equipe sobre o novo pedido/itens
-    mensagem_notificacao_staff = NotificationPayload(
-        title="Novo Pedido/Itens Adicionados via QRCode",
-        message=f"Mesa {mesa_numero if mesa_numero else mesa_id} adicionou {len(pedido_public_data.itens)} tipo(s) de item(ns) à comanda {comanda_atualizada.id}. Total de novos itens: R$ {valor_total_novos_itens:.2f}.",
-        details={
-            "comanda_id": comanda_atualizada.id,
-            "mesa_id": mesa_id,
-            "mesa_numero": mesa_numero,
-            "numero_de_itens_adicionados": len(pedido_public_data.itens)
-        }
-    )
-    await redis_service_instance.publish_message(
-        channel="staff_notifications",
-        message=WebSocketMessage(type="notification", payload=mensagem_notificacao_staff.model_dump())
-    )
-
-    # Notificar também o canal específico da comanda
-    payload_atualizacao_comanda = ComandaStatusUpdatePayload(
-        comanda_id=str(comanda_atualizada.id),
-        status_comanda=comanda_atualizada.status_comanda.value,
-        message=f"{len(pedido_public_data.itens)} item(ns) adicionado(s) à sua comanda."
-    )
-    await redis_service_instance.publish_message(
-        channel=f"comanda_status:{comanda_atualizada.id}",
-        message=WebSocketMessage(type="status_update", payload=payload_atualizacao_comanda.model_dump())
-    )
-
-    logger.info(
-        f"Pedido processado com sucesso para comanda {comanda_atualizada.id} (Mesa {mesa_id}). {len(itens_confirmados_response)} itens adicionados.")
-
-    # 6. Retornar uma confirmação para o cliente
-    return PedidoPublicResponseSchema(
-        id_comanda=str(comanda_atualizada.id),
-        status_comanda=comanda_atualizada.status_comanda.value,
-        mesa_numero=mesa_numero,
-        itens_confirmados=itens_confirmados_response,
-        valor_total_comanda_atual=comanda_atualizada.valor_total_calculado,
-        mensagem_confirmacao="Seu pedido foi recebido e está sendo processado!",
-        qr_code_comanda_hash=comanda_atualizada.qr_code_comanda_hash
-    )
-
-
-# Instanciar o serviço
+# Instância do serviço para uso nas rotas
 pedido_service = PedidoService()

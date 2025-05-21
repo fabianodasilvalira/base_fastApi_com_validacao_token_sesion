@@ -13,6 +13,8 @@ from app.models import Cliente, Mesa
 from app.models.comanda import Comanda, StatusComanda
 from app.models.pagamento import Pagamento
 from app.models.fiado import Fiado
+from app.models.pedido import Pedido
+from app.models.item_pedido import ItemPedido
 from app.schemas.comanda_schemas import ComandaCreate, ComandaUpdate
 from app.schemas.pagamento_schemas import PagamentoCreateSchema
 from app.schemas.fiado_schemas import FiadoCreate
@@ -231,3 +233,31 @@ async def buscar_cliente(db: AsyncSession, cliente_id: int):
 async def buscar_mesa(db: AsyncSession, mesa_id: int):
     result = await db.execute(select(Mesa).where(Mesa.id == mesa_id))
     return result.scalar_one_or_none()
+
+
+async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int) -> float:
+    try:
+        # Buscar todos os pedidos da comanda
+        result_pedidos = await db.execute(
+            select(Pedido).where(Pedido.id_comanda == id_comanda)
+        )
+        pedidos = result_pedidos.scalars().all()
+
+        total_comanda = 0.0
+
+        for pedido in pedidos:
+            # Buscar itens do pedido
+            result_itens = await db.execute(
+                select(ItemPedido).where(ItemPedido.id_pedido == pedido.id)
+            )
+            itens = result_itens.scalars().all()
+
+            # Somar total dos itens do pedido
+            total_pedido = sum(item.preco_unitario * item.quantidade for item in itens)
+            total_comanda += total_pedido
+
+        return total_comanda
+
+    except Exception as e:
+        logger.exception(f"Erro ao calcular total da comanda {id_comanda}: {e}")
+        return 0.0

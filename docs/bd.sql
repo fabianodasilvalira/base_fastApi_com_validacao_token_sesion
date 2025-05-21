@@ -16,7 +16,7 @@
 -- Copiando dados para a tabela public.alembic_version: 0 rows
 /*!40000 ALTER TABLE "alembic_version" DISABLE KEYS */;
 INSERT INTO "alembic_version" ("version_num") VALUES
-	('84875b2b2f1f');
+	('cba1cf48d1e7');
 /*!40000 ALTER TABLE "alembic_version" ENABLE KEYS */;
 
 -- Copiando dados para a tabela public.categorias: 0 rows
@@ -28,7 +28,7 @@ INSERT INTO "categorias" ("id", "nome", "descricao", "imagem_url", "criado_em", 
 	(1, 'Eletrônicos', 'Produtos eletrônicos em geral', 'https://exemplo.com/imagem.jpg', '2025-05-20 10:20:54.334325-03', NULL);
 /*!40000 ALTER TABLE "categorias" ENABLE KEYS */;
 
--- Copiando dados para a tabela public.clientes: 0 rows
+-- Copiando dados para a tabela public.clientes: 2 rows
 /*!40000 ALTER TABLE "clientes" DISABLE KEYS */;
 INSERT INTO "clientes" ("id", "nome", "telefone", "observacoes", "endereco", "created_at", "updated_at", "imagem_url") VALUES
 	(1, 'teste', '88888', 'tes', NULL, NULL, NULL, NULL),
@@ -40,32 +40,54 @@ INSERT INTO "clientes" ("id", "nome", "telefone", "observacoes", "endereco", "cr
 INSERT INTO "comandas" ("id", "id_mesa", "id_cliente_associado", "status_comanda", "valor_total_calculado", "valor_pago", "valor_fiado", "valor_desconto", "motivo_cancelamento", "observacoes", "qr_code_comanda_hash", "created_at", "updated_at") VALUES
 	(2, 1, 1, 'ABERTA', 0.00, 0.00, 0.00, 0.00, NULL, 'string', 'a8fcfe2b-0b07-4920-a2d5-e2600347d202', '2025-05-20 11:26:17.71637', '2025-05-20 11:26:17.71637'),
 	(3, 1, 1, 'ABERTA', 0.00, 0.00, 0.00, 0.00, NULL, 'string', 'dae2bda5-7365-41be-9a59-751e7394a79e', '2025-05-20 11:26:49.072955', '2025-05-20 11:26:49.072955'),
-	(1, 1, 1, 'PAGA_PARCIALMENTE', 25.00, 15.00, 0.00, 0.00, NULL, 'string', '79eb94cb-72aa-4b01-a3fd-d772380ed53a', '2025-05-20 10:49:18.802916', '2025-05-20 12:09:47.43596');
+	(1, 1, 1, 'PAGA_PARCIALMENTE', 0.00, 0.00, 0.00, 0.00, NULL, 'string', '79eb94cb-72aa-4b01-a3fd-d772380ed53a', '2025-05-20 10:49:18.802916', '2025-05-21 12:36:18.133107');
 /*!40000 ALTER TABLE "comandas" ENABLE KEYS */;
 
 -- Copiando dados para a tabela public.fiados: 0 rows
 /*!40000 ALTER TABLE "fiados" DISABLE KEYS */;
 /*!40000 ALTER TABLE "fiados" ENABLE KEYS */;
 
--- Copiando dados para a tabela public.itens_pedido: 0 rows
+-- Copiando dados para a tabela public.itens_pedido: 9 rows
 /*!40000 ALTER TABLE "itens_pedido" DISABLE KEYS */;
+INSERT INTO "itens_pedido" ("id", "id_pedido", "id_comanda", "id_produto", "quantidade", "preco_unitario", "observacoes", "status", "created_at", "updated_at", "preco_total") VALUES
+	(2, 12, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:06:12.159294', '2025-05-21 12:06:12.159294', 37.00),
+	(3, 13, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:10:29.57125', '2025-05-21 12:10:29.57125', 37.00),
+	(4, 14, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:10:57.762725', '2025-05-21 12:10:57.762725', 37.00),
+	(5, 15, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:12:11.734979', '2025-05-21 12:12:11.734979', 37.00),
+	(6, 16, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:15:24.133981', '2025-05-21 12:15:24.133981', 37.00),
+	(7, 17, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:31:38.071278', '2025-05-21 12:31:38.071278', 37.00),
+	(8, 19, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:34:58.631061', '2025-05-21 12:34:58.631061', 37.00),
+	(9, 20, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:35:59.226831', '2025-05-21 12:35:59.226831', 37.00),
+	(10, 21, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:36:18.133107', '2025-05-21 12:36:18.133107', 37.00),
+	(11, 22, 1, 2, 2, 18.50, 'string', 'RECEBIDO', '2025-05-21 12:37:38.082011', '2025-05-21 12:37:38.082011', 37.00);
 /*!40000 ALTER TABLE "itens_pedido" ENABLE KEYS */;
 
--- Copiando dados para a tabela public.mesas: 0 rows
+-- Copiando dados para a tabela public.mesas: 1 rows
 /*!40000 ALTER TABLE "mesas" DISABLE KEYS */;
 INSERT INTO "mesas" ("id", "numero_identificador", "capacidade", "status", "qr_code_hash", "id_cliente_associado", "ativa_para_pedidos", "criado_em", "atualizado_em") VALUES
 	(1, '1', 6, 'DISPONIVEL', 'gerarhash', 1, 'true', '2025-05-20 10:41:51.651206-03', '2025-05-20 10:43:33.299174-03');
 /*!40000 ALTER TABLE "mesas" ENABLE KEYS */;
 
--- Copiando dados para a tabela public.pagamentos: 2 rows
+-- Copiando dados para a tabela public.pagamentos: 0 rows
 /*!40000 ALTER TABLE "pagamentos" DISABLE KEYS */;
 INSERT INTO "pagamentos" ("id", "id_comanda", "id_cliente", "id_usuario_registrou", "id_venda", "id_pedido", "valor_pago", "metodo_pagamento", "status_pagamento", "detalhes_transacao", "observacoes", "data_pagamento", "updated_at") VALUES
 	(6, 1, 1, 1, NULL, NULL, 10.00, 'DINHEIRO', 'APROVADO', NULL, 'string', '2025-05-20 12:09:21.578876', '2025-05-20 12:09:21.578876'),
 	(7, 1, 1, 1, NULL, NULL, 5.00, 'PIX', 'APROVADO', NULL, 'string', '2025-05-20 12:09:47.43596', '2025-05-20 12:09:47.43596');
 /*!40000 ALTER TABLE "pagamentos" ENABLE KEYS */;
 
--- Copiando dados para a tabela public.pedidos: 0 rows
+-- Copiando dados para a tabela public.pedidos: 10 rows
 /*!40000 ALTER TABLE "pedidos" DISABLE KEYS */;
+INSERT INTO "pedidos" ("id", "id_comanda", "id_usuario_registrou", "mesa_id", "tipo_pedido", "status_geral_pedido", "observacoes_pedido", "motivo_cancelamento", "created_at", "updated_at") VALUES
+	(12, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:06:12.140887', '2025-05-21 12:06:12.140887'),
+	(13, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:10:29.542968', '2025-05-21 12:10:29.542968'),
+	(14, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:10:57.732525', '2025-05-21 12:10:57.732525'),
+	(15, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:12:11.721336', '2025-05-21 12:12:11.721336'),
+	(16, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:15:24.119782', '2025-05-21 12:15:24.119782'),
+	(17, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:31:38.040129', '2025-05-21 12:31:38.040129'),
+	(19, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:34:58.629525', '2025-05-21 12:34:58.629525'),
+	(20, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:35:59.225831', '2025-05-21 12:35:59.225831'),
+	(21, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:36:18.128135', '2025-05-21 12:36:18.128135'),
+	(22, 1, 1, 1, 'INTERNO_MESA', 'RECEBIDO', 'string', NULL, '2025-05-21 12:37:38.064664', '2025-05-21 12:37:38.064664');
 /*!40000 ALTER TABLE "pedidos" ENABLE KEYS */;
 
 -- Copiando dados para a tabela public.produtos: 0 rows
@@ -86,13 +108,6 @@ INSERT INTO "produtos" ("id", "nome", "descricao", "preco_unitario", "disponivel
 	(14, 'Calabresa Acebolada', 'Linguiça calabresa fatiada e grelhada com cebolas caramelizadas', 35.90, 'true', 'https://exemplo.com/imagens/calabresa_acebolada.jpg', '2025-05-16 10:16:52.303902-03', '2025-05-16 10:37:26.120572-03', 7),
 	(15, 'Bolinho de Bacalhau', 'Porção com 12 bolinhos de bacalhau crocantes por fora e macios por dentro', 48.00, 'true', 'https://exemplo.com/imagens/bolinho_bacalhau.jpg', '2025-05-16 10:16:52.303902-03', '2025-05-16 10:37:26.120572-03', 7);
 /*!40000 ALTER TABLE "produtos" ENABLE KEYS */;
-
--- Copiando dados para a tabela public.refresh_tokens: 0 rows
-/*!40000 ALTER TABLE "refresh_tokens" DISABLE KEYS */;
-INSERT INTO "refresh_tokens" ("id", "user_id", "token", "expires_at", "created_at") VALUES
-	(1, 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVzZXJfaWQiOiIxIiwiZXhwIjoxNzQ4Mjc0MjY3LCJ0eXBlIjoicmVmcmVzaCJ9.sZOHF25Vae3a7wtymPOUc2MgegovS4wKzpIHa0GDyfY', '2025-05-26 15:44:27.499871', '2025-05-19 12:44:27.23653'),
-	(2, 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVzZXJfaWQiOiIxIiwiZXhwIjoxNzQ4Mjc1Nzg1LCJ0eXBlIjoicmVmcmVzaCJ9.OIHQaO5ef_uPGhfzlRydt2OrSNCpvodVO-sUwZWPoIU', '2025-05-26 16:09:45.217346', '2025-05-19 13:09:44.995553');
-/*!40000 ALTER TABLE "refresh_tokens" ENABLE KEYS */;
 
 -- Copiando dados para a tabela public.users: 0 rows
 /*!40000 ALTER TABLE "users" DISABLE KEYS */;

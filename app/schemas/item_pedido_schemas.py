@@ -1,52 +1,65 @@
-from pydantic import BaseModel, field_validator, model_validator, Field
+from pydantic import BaseModel, field_validator, model_validator, Field, computed_field
 from enum import Enum
 from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
 
-# Enum para o status do pedido
-class StatusPedido(str, Enum):
+# Enum para o status do item de pedido
+class StatusItemPedido(str, Enum):
     RECEBIDO = "Recebido"
-    EM_PREPARO = "Em Preparo"
-    PRONTO_PARA_ENTREGA = "Pronto para Entrega"
-    ENTREGUE_NA_MESA = "Entregue na Mesa"
-    SAIU_PARA_ENTREGA_EXTERNA = "Saiu para Entrega (Externa)"
-    ENTREGUE_CLIENTE_EXTERNO = "Entregue (Cliente Externo)"
+    PREPARANDO = "Preparando"
+    PRONTO = "Pronto"
+    FINALIZADO = "Finalizado"
     CANCELADO = "Cancelado"
 
-# Enum para o tipo de pedido
-class TipoPedido(str, Enum):
-    INTERNO_MESA = "Interno (Mesa)"
-    EXTERNO_DELIVERY = "Externo (Delivery)"
-    EXTERNO_RETIRADA = "Externo (Retirada)"
-
-# Schema para criação de itens no pedido
+# Schema para criação de item (entrada do usuário)
 class ItemPedidoCreate(BaseModel):
     id_produto: int
     quantidade: int
-    preco_unitario: Decimal
-    observacao: Optional[str] = None
-    status_item_pedido: StatusPedido = StatusPedido.RECEBIDO
+    observacoes: Optional[str] = None
 
-    @model_validator(mode='after')
-    def calcular_preco_total(self) -> 'ItemPedidoCreate':
-        self.preco_total_item = self.quantidade * self.preco_unitario
-        return self
+    @field_validator('quantidade')
+    def quantidade_deve_ser_positiva(cls, v):
+        if v <= 0:
+            raise ValueError('A quantidade deve ser maior que zero')
+        return v
+
+    class Config:
+        from_attributes = True
+        schema_extra = {
+            "example": {
+                "id_produto": 5,
+                "quantidade": 2,
+                "observacoes": "Sem glúten"
+            }
+        }
+
+# Schema para atualização de item
+class ItemPedidoUpdate(BaseModel):
+    quantidade: Optional[int] = None
+    observacoes: Optional[str] = None
+    status: Optional[StatusItemPedido] = None  # Adicionado campo status
 
     class Config:
         from_attributes = True
 
-# Schema para itens do pedido (resposta)
+# Schema de resposta do item
 class ItemPedido(BaseModel):
     id: int
+    id_pedido: int
+    id_comanda: int  # Adicionado campo id_comanda
     id_produto: int
     quantidade: int
     preco_unitario: Decimal
-    preco_total_item: Decimal
-    observacao: Optional[str] = None
-    status_item_pedido: StatusPedido
+    preco_total: Decimal  # Adicionado campo preco_total
+    observacoes: Optional[str] = None
+    status: StatusItemPedido  # Adicionado campo status
     created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None  # Adicionado campo updated_at
+
+    @computed_field
+    def preco_total_item(self) -> Decimal:
+        return self.quantidade * self.preco_unitario
 
     class Config:
         from_attributes = True
@@ -54,29 +67,23 @@ class ItemPedido(BaseModel):
             datetime: lambda v: v.isoformat() if v else None
         }
 
-# Schema para criação de um pedido
-class PedidoCreate(BaseModel):
-    id_comanda: int
-    id_usuario_registrou: Optional[int] = None
-    tipo_pedido: TipoPedido = TipoPedido.INTERNO_MESA
-    status_geral_pedido: StatusPedido = StatusPedido.RECEBIDO
-    observacoes_pedido: Optional[str] = None
-    itens: List[ItemPedidoCreate]
-
-    class Config:
-        from_attributes = True
-
-# Schema de resposta do pedido
-class Pedido(BaseModel):
+# Schema para resposta de item de pedido (usado nas rotas)
+class ItemPedidoInResponse(BaseModel):
     id: int
-    id_comanda: int
-    id_usuario_registrou: Optional[int] = None
-    tipo_pedido: TipoPedido
-    status_geral_pedido: StatusPedido
-    observacoes_pedido: Optional[str] = None
-    itens: List[ItemPedido]
+    id_pedido: int
+    id_comanda: int  # Adicionado campo id_comanda
+    id_produto: int
+    quantidade: int
+    preco_unitario: Decimal
+    preco_total: Decimal  # Adicionado campo preco_total
+    observacoes: Optional[str] = None
+    status: StatusItemPedido  # Adicionado campo status
     created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None  # Adicionado campo updated_at
+
+    @computed_field
+    def preco_total_item(self) -> Decimal:
+        return self.quantidade * self.preco_unitario
 
     class Config:
         from_attributes = True
@@ -84,35 +91,19 @@ class Pedido(BaseModel):
             datetime: lambda v: v.isoformat() if v else None
         }
 
-# Schemas para interface pública (QRCode)
+# Schemas para interface pública
 class ItemPedidoPublicCreateSchema(BaseModel):
     produto_id: int
     quantidade: int
-    observacao: Optional[str] = None
-
-class PedidoPublicCreateSchema(BaseModel):
-    itens: List[ItemPedidoPublicCreateSchema]
+    observacoes: Optional[str] = None
 
 class ItemPedidoPublicResponseSchema(BaseModel):
     produto_nome: str
     quantidade: int
     preco_unitario: Decimal
-    preco_total_item: Decimal
-    observacao: Optional[str] = None
+    observacoes: Optional[str] = None
+    status: Optional[str] = None  # Adicionado campo status
 
-class PedidoPublicResponseSchema(BaseModel):
-    id_comanda: str
-    status_comanda: str
-    mesa_numero: Optional[str] = None
-    itens_confirmados: List[ItemPedidoPublicResponseSchema]
-    valor_total_comanda_atual: Decimal
-    mensagem_confirmacao: str
-    qr_code_comanda_hash: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
+    @computed_field
+    def preco_total_item(self) -> Decimal:
+        return self.quantidade * self.preco_unitario

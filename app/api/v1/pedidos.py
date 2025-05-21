@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from app.core.session import get_db
 from app.schemas.pedido_schemas import (
-    PedidoCreate, StatusPedido, ItemPedido,
-    ItemPedidoCreate, Pedido
+    PedidoCreate, StatusPedidoUpdate, Pedido
 )
 from app.services.pedido_service import pedido_service
 
@@ -20,7 +19,9 @@ async def criar_pedido(
     """
     Cria um novo pedido com seus itens associados.
     """
-    return await pedido_service.criar_pedido(db_session, pedido)
+    pedido_dict = await pedido_service.criar_pedido(db_session, pedido)
+    # Convertendo o dicionário para o schema Pedido para serialização segura
+    return pedido_dict
 
 # Listar pedidos (com filtros opcionais)
 @router.get("/", response_model=List[Pedido])
@@ -33,28 +34,29 @@ async def listar_pedidos(
     """
     Lista pedidos com filtros opcionais.
     """
-    return await pedido_service.listar_pedidos(
+    pedidos_list = await pedido_service.listar_pedidos(
         db_session, status=status, data_inicio=data_inicio, data_fim=data_fim
     )
+    return pedidos_list
 
 # Atualização do status do pedido
 @router.put("/{pedido_id}/status", response_model=Pedido)
 async def atualizar_status_pedido(
     pedido_id: int,
-    status_update: StatusPedido,
+    status_update: StatusPedidoUpdate,
     db_session: AsyncSession = Depends(get_db)
 ):
     """
     Atualiza o status de um pedido.
     """
-    pedido, mensagem = await pedido_service.atualizar_status_pedido(
-        db_session, pedido_id, status_update
+    pedido_dict, mensagem = await pedido_service.atualizar_status_pedido(
+        db_session, pedido_id, status_update.status
     )
 
-    if pedido is None:
+    if pedido_dict is None:
         raise HTTPException(status_code=400, detail=mensagem)
 
-    return pedido
+    return pedido_dict
 
 # Detalhar um pedido específico
 @router.get("/{pedido_id}", response_model=Pedido)
@@ -65,49 +67,8 @@ async def detalhar_pedido(
     """
     Busca detalhes de um pedido específico.
     """
-    pedido = await pedido_service.buscar_pedido(db_session, pedido_id)
-    if not pedido:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Pedido não encontrado"
-        )
-    return pedido
-
-# Adicionar item ao pedido
-@router.post("/{pedido_id}/itens/", response_model=ItemPedido)
-async def adicionar_item_pedido(
-    pedido_id: int,
-    item_in: ItemPedidoCreate,
-    db_session: AsyncSession = Depends(get_db)
-):
-    """
-    Adiciona um novo item a um pedido existente.
-    """
-    item = await pedido_service.adicionar_item(db_session, pedido_id, item_in)
-    if not item:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Erro ao adicionar item ao pedido"
-        )
-    return item
-
-# Remover item do pedido
-@router.delete("/{pedido_id}/itens/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remover_item_pedido(
-    pedido_id: int,
-    item_id: int,
-    db_session: AsyncSession = Depends(get_db)
-):
-    """
-    Remove um item de um pedido.
-    """
-    sucesso = await pedido_service.remover_item(db_session, pedido_id, item_id)
-    if not sucesso:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Erro ao remover item do pedido"
-        )
-    return {"detail": "Item removido com sucesso"}
+    pedido_dict = await pedido_service.buscar_pedido(db_session, pedido_id)
+    return pedido_dict
 
 # Cancelar pedido
 @router.put("/{pedido_id}/cancelar", response_model=Pedido)
@@ -118,13 +79,8 @@ async def cancelar_pedido(
     """
     Cancela um pedido e todos os seus itens.
     """
-    pedido = await pedido_service.cancelar_pedido(db_session, pedido_id)
-    if not pedido:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Erro ao cancelar o pedido"
-        )
-    return pedido
+    pedido_dict = await pedido_service.cancelar_pedido(db_session, pedido_id)
+    return pedido_dict
 
 # Listar pedidos de um usuário específico
 @router.get("/usuario/{usuario_id}", response_model=List[Pedido])
@@ -135,5 +91,5 @@ async def listar_pedidos_usuario(
     """
     Lista pedidos registrados por um usuário específico.
     """
-    pedidos = await pedido_service.listar_pedidos_por_usuario(db_session, usuario_id)
-    return pedidos
+    pedidos_list = await pedido_service.listar_pedidos_por_usuario(db_session, usuario_id)
+    return pedidos_list

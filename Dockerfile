@@ -13,7 +13,8 @@ ENV PYTHONUNBUFFERED 1
 # e para o cliente PostgreSQL (psycopg2-binary)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc libpq-dev && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* \
+    chmod +x /app/entrypoint.sh
 
 # Copiar o arquivo de requisitos primeiro para aproveitar o cache do Docker
 COPY requirements.txt .

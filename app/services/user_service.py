@@ -94,3 +94,7 @@ async def create_first_superuser():
 
 
 user_service = UserService()
+
+
+def get_user_by_id():
+    return None

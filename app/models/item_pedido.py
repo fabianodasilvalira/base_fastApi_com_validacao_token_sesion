@@ -27,10 +27,10 @@ class ItemPedido(Base):
     preco_total = Column(Numeric(10, 2), nullable=False)
     observacoes = Column(Text, nullable=True)
 
-    # Usando Enum para status de pedido
     status = Column(Enum(StatusPedidoEnum), default=StatusPedidoEnum.RECEBIDO, nullable=False)
 
     created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now())
 
     pedido = relationship("Pedido", back_populates="itens")
     comanda = relationship("Comanda", back_populates="itens_pedido")
