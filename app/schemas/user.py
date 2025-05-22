@@ -15,6 +15,10 @@ class UserBase(BaseModel):
     is_superuser: Optional[bool] = False
     is_verified: Optional[bool] = False
 
+class UsuarioBaseComanda(BaseModel):
+    id: int
+    nome: str
+    email: str
 
 class UserCreate(UserBase):
     email: EmailStr

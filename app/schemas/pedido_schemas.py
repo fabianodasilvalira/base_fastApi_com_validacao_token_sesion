@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator, model_validator, Field, computed_field
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from datetime import datetime
 
@@ -90,16 +90,44 @@ class PedidoCreate(BaseModel):
             }
         }
 
+# Schema para dados da comanda no retorno do pedido
+class ComandaEmPedido(BaseModel):
+    id: int
+    status_comanda: str
+    qr_code_comanda_hash: str
+
+    class Config:
+        from_attributes = True
+
+# Schema para dados do usuário no retorno do pedido
+class UsuarioEmPedido(BaseModel):
+    id: int
+    nome: str
+    email: str
+
+    class Config:
+        from_attributes = True
+
+# Schema para dados da mesa no retorno do pedido
+class MesaEmPedido(BaseModel):
+    id: int
+    numer_identificador: str
+    stauts: str
+    ar_code_hash: str
+
+    class Config:
+        from_attributes = True
+
 # Schema de resposta do pedido
 class Pedido(BaseModel):
     id: int
-    id_comanda: int
-    id_usuario_registrou: Optional[int] = None
-    mesa_id: Optional[int] = None  # Adicionado campo mesa_id
+    comanda: Optional[ComandaEmPedido] = None
+    usuario_registrou: Optional[UsuarioEmPedido] = None
+    mesa: Optional[MesaEmPedido] = None
     tipo_pedido: TipoPedido
     status_geral_pedido: StatusPedido
     observacoes_pedido: Optional[str] = None
-    motivo_cancelamento: Optional[str] = None  # Adicionado campo motivo_cancelamento
+    motivo_cancelamento: Optional[str] = None
     itens: List["ItemPedido"]
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

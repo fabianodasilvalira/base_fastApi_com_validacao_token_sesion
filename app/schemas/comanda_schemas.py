@@ -3,6 +3,12 @@ from typing import Optional, List
 from enum import Enum
 from datetime import datetime
 
+class ComandaBaseComanda(BaseModel):
+    id: int
+    status_comanda: str
+    qr_code_comanda_hash: str
+
+
 class StatusComanda(str, Enum):
     ABERTA = "Aberta"
     FECHADA = "Fechada"

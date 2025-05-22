@@ -24,6 +24,13 @@ class MesaCreate(BaseModel):
     class Config:
         from_attributes = True
 
+class MesaBaseComanda(BaseModel):
+    id: int
+    numer_identificador: int
+    stauts: str
+    ar_code_hash: str
+
+
 # Schema para a resposta de uma mesa (ao buscar informações sobre a mesa)
 class MesaOut(BaseModel):
     id: int
