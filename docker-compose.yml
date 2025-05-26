@@ -19,6 +19,20 @@ services:
       retries: 5
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: fastapi_auth_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   app:
     build:
       context: .
@@ -26,6 +40,8 @@ services:
     container_name: fastapi_auth_app_service
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "8000:8000"
@@ -36,8 +52,10 @@ services:
       - .env
     environment:
       DB_HOST: db
+      REDIS_URL: redis://redis:6379
     command: ["sh", "./entrypoint.sh"]
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  redis_data:
