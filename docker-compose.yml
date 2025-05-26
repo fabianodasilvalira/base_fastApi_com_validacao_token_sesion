@@ -52,8 +52,12 @@ services:
       - .env
     environment:
       DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-your_postgres_password}
+      DB_NAME: ${DB_NAME:-fastapi_auth_db}
       REDIS_URL: redis://redis:6379
-    command: ["sh", "./entrypoint.sh"]
+      PORT: 8000
+    command: ["./entrypoint.sh"]
     restart: unless-stopped
 
 volumes:
