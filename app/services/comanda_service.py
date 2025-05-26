@@ -1,9 +1,8 @@
 # app/services/comanda_service.py
 import logging
-
-
 import uuid
 from sqlalchemy import select, or_
+from sqlalchemy.sql import func # <<< ADICIONADO IMPORT
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from typing import List, Optional
@@ -235,29 +234,54 @@ async def buscar_mesa(db: AsyncSession, mesa_id: int):
     return result.scalar_one_or_none()
 
 
-async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int) -> float:
+async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int) -> Optional[Comanda]:
+    """
+    Recalcula o valor total dos itens e a taxa de serviço para uma comanda específica,
+    atualiza os campos na instância da comanda e faz flush das alterações na sessão.
+    Retorna a instância da comanda atualizada ou None se não encontrada.
+    """
     try:
-        # Buscar todos os pedidos da comanda
-        result_pedidos = await db.execute(
-            select(Pedido).where(Pedido.id_comanda == id_comanda)
+        # Buscar a comanda com seus itens de pedido carregados
+        result_comanda = await db.execute(
+            select(Comanda)
+            .options(selectinload(Comanda.itens_pedido))
+            .where(Comanda.id == id_comanda)
         )
-        pedidos = result_pedidos.scalars().all()
+        comanda = result_comanda.scalar_one_or_none()
 
-        total_comanda = 0.0
+        if not comanda:
+            logger.error(f"Comanda com ID {id_comanda} não encontrada para recálculo.")
+            return None
 
-        for pedido in pedidos:
-            # Buscar itens do pedido
-            result_itens = await db.execute(
-                select(ItemPedido).where(ItemPedido.id_pedido == pedido.id)
-            )
-            itens = result_itens.scalars().all()
+        # Calcular o valor total dos itens (valor_total_calculado)
+        total_itens = Decimal("0.0")
+        for item in comanda.itens_pedido:
+            # Certifique-se de que o item pertence à comanda correta (redundante se o selectinload funcionar bem)
+            # if item.id_comanda == id_comanda:
+            if item.preco_unitario is not None and item.quantidade is not None:
+                total_itens += item.preco_unitario * item.quantidade
 
-            # Somar total dos itens do pedido
-            total_pedido = sum(item.preco_unitario * item.quantidade for item in itens)
-            total_comanda += total_pedido
+        # Calcular o valor da taxa de serviço
+        percentual_taxa = comanda.percentual_taxa_servico if comanda.percentual_taxa_servico is not None else Decimal("0.0")
+        valor_taxa = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
 
-        return total_comanda
+        # Atualizar os campos na comanda
+        comanda.valor_total_calculado = total_itens
+        comanda.valor_taxa_servico = valor_taxa
+        comanda.updated_at = func.now() # Atualizar timestamp
+
+        # Adicionar a comanda atualizada à sessão (importante para que o flush funcione)
+        db.add(comanda)
+        # Fazer flush para persistir as alterações na transação atual
+        # Não fazer commit aqui, pois a função chamadora (ex: criar_pedido) fará o commit.
+        await db.flush([comanda])
+        # await db.refresh(comanda) # O refresh pode ser útil se precisar dos dados atualizados imediatamente
+
+        logger.info(f"Comanda ID {id_comanda} recalculada: Total Itens={total_itens}, Taxa Serviço={valor_taxa}")
+        return comanda
 
     except Exception as e:
-        logger.exception(f"Erro ao calcular total da comanda {id_comanda}: {e}")
-        return 0.0
+        logger.exception(f"Erro ao recalcular totais da comanda {id_comanda}: {e}")
+        # Não retornar a comanda em caso de erro para evitar dados inconsistentes
+        return None
+

@@ -3,6 +3,10 @@ from typing import Optional, List
 from enum import Enum
 from datetime import datetime
 
+from app.schemas.item_pedido_schemas import ItemPedidoInResponse
+from app.schemas.pagamento_schemas import PagamentoResponseSchema
+
+
 class ComandaBaseComanda(BaseModel):
     id: int
     status_comanda: str
@@ -22,6 +26,8 @@ class ComandaCreate(BaseModel):
     id_cliente_associado: Optional[int] = None
     status_comanda: StatusComanda = StatusComanda.ABERTA
     valor_total_calculado: condecimal(max_digits=10, decimal_places=2) = 0.00
+    percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2) = 10.00
+    valor_taxa_servico: condecimal(max_digits=10, decimal_places=2) = 0.00
     valor_pago: condecimal(max_digits=10, decimal_places=2) = 0.00
     valor_fiado: condecimal(max_digits=10, decimal_places=2) = 0.00
     observacoes: Optional[str] = None
@@ -38,6 +44,8 @@ class ComandaUpdate(BaseModel):
     id_cliente_associado: Optional[int] = None  # Corrigido para int para consistência com o modelo
     status_comanda: Optional[StatusComanda] = None
     valor_total_calculado: Optional[condecimal(max_digits=10, decimal_places=2)] = None
+    percentual_taxa_servico: Optional[condecimal(max_digits=5, decimal_places=2)] = None
+    valor_taxa_servico: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     valor_pago: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     valor_fiado: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     observacoes: Optional[str] = None
@@ -70,6 +78,8 @@ class ComandaInResponse(BaseModel):
     id_cliente_associado: Optional[int] = None  # Corrigido para int para consistência com o modelo
     status_comanda: StatusComanda
     valor_total_calculado: condecimal(max_digits=10, decimal_places=2)
+    percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2)
+    valor_taxa_servico: condecimal(max_digits=10, decimal_places=2)
     valor_pago: condecimal(max_digits=10, decimal_places=2)
     valor_fiado: condecimal(max_digits=10, decimal_places=2)
     observacoes: Optional[str] = None
@@ -77,8 +87,8 @@ class ComandaInResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     # Campos opcionais para relacionamentos quando carregados
-    itens_pedido: Optional[List[ItemPedidoBase]] = None
-    pagamentos: Optional[List[PagamentoBase]] = None
+    itens_pedido: Optional[List[ItemPedidoInResponse]] = None
+    pagamentos: Optional[List[PagamentoResponseSchema]] = None
     fiados_registrados: Optional[List[FiadoBase]] = None
 
     class Config:

@@ -102,7 +102,7 @@ class ComandaEmPedido(BaseModel):
 # Schema para dados do usuário no retorno do pedido
 class UsuarioEmPedido(BaseModel):
     id: int
-    nome: str
+    username: str
     email: str
 
     class Config:
@@ -111,9 +111,9 @@ class UsuarioEmPedido(BaseModel):
 # Schema para dados da mesa no retorno do pedido
 class MesaEmPedido(BaseModel):
     id: int
-    numer_identificador: str
-    stauts: str
-    ar_code_hash: str
+    numero_identificador: str
+    status: str
+    qr_code_hash: Optional[str] = None
 
     class Config:
         from_attributes = True

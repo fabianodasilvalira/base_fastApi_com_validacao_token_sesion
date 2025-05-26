@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from app.models.pedido import Pedido as PedidoModel, StatusPedido
 from app.models.item_pedido import ItemPedido as ItemPedidoModel, StatusPedidoEnum
@@ -14,7 +14,7 @@ from app.models.produto import Produto as ProdutoModel
 from app.models.comanda import Comanda as ComandaModel, StatusComanda
 from app.models.mesa import Mesa as MesaModel
 
-from app.schemas.pedido_schemas import PedidoCreate, Pedido
+from app.schemas.pedido_schemas import PedidoCreate, Pedido, ComandaEmPedido, UsuarioEmPedido, MesaEmPedido
 from app.schemas.item_pedido_schemas import ItemPedido as ItemPedidoSchema
 from app.services import comanda_service, produto_service
 
@@ -136,7 +136,7 @@ class PedidoService:
         # Atualizar o status da comanda para PAGA_PARCIALMENTE se estiver ABERTA
         # Corrigido para usar um status válido do enum StatusComanda
         if comanda.status_comanda == StatusComanda.ABERTA:
-            comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
+            # comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
             comanda.updated_at = datetime.now()
 
         # Recalcular o valor total da comanda
@@ -148,7 +148,12 @@ class PedidoService:
         # Buscar o pedido com seus itens carregados para retorno seguro
         query = (
             select(PedidoModel)
-            .options(selectinload(PedidoModel.itens))
+            .options(
+                selectinload(PedidoModel.itens),
+                joinedload(PedidoModel.comanda),
+                joinedload(PedidoModel.usuario_registrou),
+                joinedload(PedidoModel.mesa)
+            )
             .where(PedidoModel.id == novo_pedido.id)
         )
 
@@ -158,13 +163,13 @@ class PedidoService:
         # Converter para dicionário para evitar acesso lazy fora do contexto assíncrono
         pedido_dict = {
             "id": pedido_completo.id,
-            "id_comanda": pedido_completo.id_comanda,
-            "id_usuario_registrou": pedido_completo.id_usuario_registrou,
-            "mesa_id": pedido_completo.mesa_id,  # Adicionado campo mesa_id
+            "comanda": ComandaEmPedido.model_validate(pedido_completo.comanda).model_dump() if pedido_completo.comanda else None,
+            "usuario_registrou": UsuarioEmPedido.model_validate(pedido_completo.usuario_registrou).model_dump() if pedido_completo.usuario_registrou else None,
+            "mesa": MesaEmPedido.model_validate(pedido_completo.mesa).model_dump() if pedido_completo.mesa else None,
             "tipo_pedido": pedido_completo.tipo_pedido.value,
             "status_geral_pedido": pedido_completo.status_geral_pedido.value,
             "observacoes_pedido": pedido_completo.observacoes_pedido,
-            "motivo_cancelamento": pedido_completo.motivo_cancelamento,  # Adicionado campo motivo_cancelamento
+            "motivo_cancelamento": pedido_completo.motivo_cancelamento,
             "created_at": pedido_completo.created_at.isoformat() if pedido_completo.created_at else None,
             "updated_at": pedido_completo.updated_at.isoformat() if pedido_completo.updated_at else None,
             "itens": []
@@ -572,7 +577,7 @@ class PedidoService:
             # Publicar mensagem
             await redis_service_instance.publish_message(
                 channel="staff_notifications",
-                message=WebSocketMessage(type="novo_pedido", payload=payload.model_dump())
+                message=WebSocketMessage(type="notification", payload=payload.model_dump())
             )
         except Exception as e:
             logger.error(f"Erro ao notificar novo pedido: {str(e)}")
