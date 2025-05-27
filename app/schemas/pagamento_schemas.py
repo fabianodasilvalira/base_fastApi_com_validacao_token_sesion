@@ -25,8 +25,6 @@ class PagamentoCreateSchema(BaseModel):
     id_comanda: int
     id_cliente: Optional[int] = None
     id_usuario_registrou: Optional[int] = None
-    id_venda: Optional[int] = None
-    id_pedido: Optional[int] = None
     valor_pago: Decimal
     metodo_pagamento: MetodoPagamento
     status_pagamento: StatusPagamento = StatusPagamento.APROVADO
@@ -38,8 +36,6 @@ class PagamentoUpdateSchema(BaseModel):
     id_comanda: Optional[int] = None
     id_cliente: Optional[int] = None
     id_usuario_registrou: Optional[int] = None
-    id_venda: Optional[int] = None
-    id_pedido: Optional[int] = None
     valor_pago: Optional[Decimal] = None
     metodo_pagamento: Optional[MetodoPagamento] = None
     status_pagamento: Optional[StatusPagamento] = None

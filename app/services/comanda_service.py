@@ -1,12 +1,13 @@
 # app/services/comanda_service.py
 import logging
 import uuid
-from sqlalchemy import select, or_
-from sqlalchemy.sql import func # <<< ADICIONADO IMPORT
+from sqlalchemy import select, or_, update
+from sqlalchemy.sql import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from typing import List, Optional
 from decimal import Decimal
+from datetime import datetime
 
 from app.models import Cliente, Mesa
 from app.models.comanda import Comanda, StatusComanda
@@ -17,8 +18,10 @@ from app.models.item_pedido import ItemPedido
 from app.schemas.comanda_schemas import ComandaCreate, ComandaUpdate
 from app.schemas.pagamento_schemas import PagamentoCreateSchema
 from app.schemas.fiado_schemas import FiadoCreate
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
 
 async def create_comanda(db: AsyncSession, comanda_data: ComandaCreate) -> Comanda:
     """Cria uma nova comanda no banco de dados."""
@@ -55,7 +58,6 @@ async def create_comanda(db: AsyncSession, comanda_data: ComandaCreate) -> Coman
     return comanda_completa
 
 
-
 async def get_comanda_by_id(db: AsyncSession, comanda_id: int) -> Optional[Comanda]:
     """Busca uma comanda pelo seu ID, carregando relacionamentos para evitar erro de serialização."""
     result = await db.execute(
@@ -80,7 +82,7 @@ async def get_comanda_by_id_detail(db: AsyncSession, comanda_id: int) -> Optiona
                 joinedload(Comanda.cliente),
                 joinedload(Comanda.itens_pedido),
                 joinedload(Comanda.pagamentos),
-                joinedload(Comanda.fiados_registrados),  # <- ADICIONE ESTA LINHA
+                joinedload(Comanda.fiados_registrados),
             )
             .where(Comanda.id == comanda_id)
         )
@@ -93,7 +95,6 @@ async def get_comanda_by_id_detail(db: AsyncSession, comanda_id: int) -> Optiona
         return None
 
 
-
 async def get_all_comandas_detailed(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[Comanda]:
     result = await db.execute(
         select(Comanda)
@@ -102,7 +103,7 @@ async def get_all_comandas_detailed(db: AsyncSession, skip: int = 0, limit: int 
             selectinload(Comanda.cliente),
             selectinload(Comanda.pagamentos),
             selectinload(Comanda.fiados_registrados),
-            selectinload(Comanda.itens_pedido),  # <-- carrega itens_pedido
+            selectinload(Comanda.itens_pedido),
         )
         .offset(skip)
         .limit(limit)
@@ -115,22 +116,17 @@ async def get_active_comanda_by_mesa_id(db: AsyncSession, mesa_id: int):
         select(Comanda)
         .options(
             joinedload(Comanda.mesa),
-            # Cuidado com collections! Pode dar problema, se quiser, carregue manualmente depois
-            # joinedload(Comanda.itens_pedido),
-            # joinedload(Comanda.pagamentos),
-            # joinedload(Comanda.fiados_registrados),
         )
         .where(
             Comanda.id_mesa == mesa_id,
             Comanda.status_comanda == StatusComanda.ABERTA,
         )
-        .order_by(Comanda.id.desc())  # opcional: pegar a comanda mais recente
+        .order_by(Comanda.id.desc())
     )
 
     result = await db.execute(query)
-    comanda = result.scalars().first()  # Pega o primeiro resultado ou None
+    comanda = result.scalars().first()
 
-    # Se quiser carregar coleções separadamente (exemplo de carregamento preguiçoso)
     if comanda:
         await db.refresh(comanda, attribute_names=["itens_pedido", "pagamentos", "fiados_registrados"])
     return comanda
@@ -156,7 +152,7 @@ async def registrar_pagamento_na_comanda(db: AsyncSession, comanda_id: int,
     # Atualiza o valor pago acumulado
     comanda.valor_pago = (comanda.valor_pago or Decimal(0)) + pagamento_data.valor_pago
 
-    # Atualiza o status da comanda
+    # CORREÇÃO: Atualiza o status baseado no valor_total_calculado (valor final a pagar)
     if comanda.valor_pago >= (comanda.valor_total_calculado or Decimal(0)):
         comanda.status_comanda = StatusComanda.PAGA_TOTALMENTE
     elif comanda.valor_pago > 0:
@@ -234,54 +230,100 @@ async def buscar_mesa(db: AsyncSession, mesa_id: int):
     return result.scalar_one_or_none()
 
 
-async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int) -> Optional[Comanda]:
+async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_commit: bool = True) -> Optional[Comanda]:
     """
-    Recalcula o valor total dos itens e a taxa de serviço para uma comanda específica,
-    atualiza os campos na instância da comanda e faz flush das alterações na sessão.
-    Retorna a instância da comanda atualizada ou None se não encontrada.
+    CORREÇÃO: Recalcula os valores conforme nova lógica:
+    - valor_final_comanda = apenas total dos itens
+    - valor_total_calculado = total dos itens + taxa - desconto
     """
     try:
-        # Buscar a comanda com seus itens de pedido carregados
+        logger.info(f"🔄 Iniciando recálculo da comanda {id_comanda}")
+
+        # 1. Calcular total dos itens usando agregação SQL direta
+        result_totais = await db.execute(
+            select(
+                func.coalesce(func.sum(ItemPedido.preco_unitario * ItemPedido.quantidade), 0).label('total_itens')
+            ).where(ItemPedido.id_comanda == id_comanda)
+        )
+        total_itens = Decimal(str(result_totais.scalar() or 0))
+
+        # 2. Buscar dados da comanda para calcular taxa e desconto
         result_comanda = await db.execute(
-            select(Comanda)
-            .options(selectinload(Comanda.itens_pedido))
+            select(Comanda.percentual_taxa_servico, Comanda.valor_desconto)
             .where(Comanda.id == id_comanda)
         )
-        comanda = result_comanda.scalar_one_or_none()
+        comanda_data = result_comanda.first()
 
-        if not comanda:
-            logger.error(f"Comanda com ID {id_comanda} não encontrada para recálculo.")
+        if not comanda_data:
+            logger.error(f"❌ Comanda {id_comanda} não encontrada")
             return None
 
-        # Calcular o valor total dos itens (valor_total_calculado)
-        total_itens = Decimal("0.0")
-        for item in comanda.itens_pedido:
-            # Certifique-se de que o item pertence à comanda correta (redundante se o selectinload funcionar bem)
-            # if item.id_comanda == id_comanda:
-            if item.preco_unitario is not None and item.quantidade is not None:
-                total_itens += item.preco_unitario * item.quantidade
-
-        # Calcular o valor da taxa de serviço
-        percentual_taxa = comanda.percentual_taxa_servico if comanda.percentual_taxa_servico is not None else Decimal("0.0")
+        # 3. Calcular valores conforme nova lógica
+        percentual_taxa = comanda_data.percentual_taxa_servico or Decimal("0.0")
         valor_taxa = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
+        desconto = comanda_data.valor_desconto or Decimal("0.0")
 
-        # Atualizar os campos na comanda
-        comanda.valor_total_calculado = total_itens
-        comanda.valor_taxa_servico = valor_taxa
-        comanda.updated_at = func.now() # Atualizar timestamp
+        # CORREÇÃO: Nova lógica de campos
+        valor_final_comanda = total_itens  # apenas total dos itens
+        valor_total_calculado = max(Decimal("0.0"), total_itens + valor_taxa - desconto)  # valor final a pagar
 
-        # Adicionar a comanda atualizada à sessão (importante para que o flush funcione)
-        db.add(comanda)
-        # Fazer flush para persistir as alterações na transação atual
-        # Não fazer commit aqui, pois a função chamadora (ex: criar_pedido) fará o commit.
-        await db.flush([comanda])
-        # await db.refresh(comanda) # O refresh pode ser útil se precisar dos dados atualizados imediatamente
+        # 4. UPDATE DIRETO no banco - GARANTIA DE PERSISTÊNCIA
+        await db.execute(
+            update(Comanda)
+            .where(Comanda.id == id_comanda)
+            .values(
+                valor_final_comanda=valor_final_comanda,  # apenas total dos itens
+                valor_taxa_servico=valor_taxa,
+                valor_total_calculado=valor_total_calculado,  # valor final a pagar
+                updated_at=datetime.now()
+            )
+        )
 
-        logger.info(f"Comanda ID {id_comanda} recalculada: Total Itens={total_itens}, Taxa Serviço={valor_taxa}")
-        return comanda
+        # 5. Commit ou flush conforme solicitado
+        if fazer_commit:
+            await db.commit()
+            logger.info(
+                f"✅ Comanda {id_comanda} recalculada e COMMITADA: Total Itens={total_itens}, Taxa={valor_taxa}, Valor Final a Pagar={valor_total_calculado}")
+        else:
+            await db.flush()
+            logger.info(
+                f"🔄 Comanda {id_comanda} recalculada (FLUSH): Total Itens={total_itens}, Taxa={valor_taxa}, Valor Final a Pagar={valor_total_calculado}")
+
+        # 6. Retornar comanda atualizada
+        result_updated = await db.execute(
+            select(Comanda).where(Comanda.id == id_comanda)
+        )
+        comanda_atualizada = result_updated.scalar_one_or_none()
+
+        logger.info(
+            f"🎯 Recálculo concluído - Comanda {id_comanda} | Total Itens: {comanda_atualizada.valor_final_comanda if comanda_atualizada else 'N/A'} | Valor Final a Pagar: {comanda_atualizada.valor_total_calculado if comanda_atualizada else 'N/A'}")
+        return comanda_atualizada
 
     except Exception as e:
-        logger.exception(f"Erro ao recalcular totais da comanda {id_comanda}: {e}")
-        # Não retornar a comanda em caso de erro para evitar dados inconsistentes
+        logger.exception(f"💥 ERRO CRÍTICO ao recalcular comanda {id_comanda}: {e}")
+        if fazer_commit:
+            await db.rollback()
         return None
 
+
+async def force_recalculate_and_commit(db: AsyncSession, id_comanda: int) -> bool:
+    """
+    FUNÇÃO DE EMERGÊNCIA - Força recálculo e commit imediato da comanda.
+    Usa uma nova transação para garantir persistência.
+    """
+    try:
+        logger.warning(f"🚨 FORÇA RECÁLCULO da comanda {id_comanda}")
+
+        # Recalcular com commit forçado
+        comanda = await recalculate_comanda_totals(db, id_comanda, fazer_commit=True)
+
+        if comanda:
+            logger.info(f"✅ FORÇA RECÁLCULO bem-sucedido - Comanda {id_comanda}")
+            return True
+        else:
+            logger.error(f"❌ FORÇA RECÁLCULO falhou - Comanda {id_comanda}")
+            return False
+
+    except Exception as e:
+        logger.exception(f"💥 ERRO na FORÇA RECÁLCULO da comanda {id_comanda}: {e}")
+        return False

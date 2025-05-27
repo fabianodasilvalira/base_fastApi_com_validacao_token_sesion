@@ -1,11 +1,12 @@
 # app/db/models/comanda.py
 import enum
-import uuid # Importar uuid para gerar hashes únicos
+import uuid
 from sqlalchemy import Column, ForeignKey, Enum as SAEnum, Numeric, Text, Integer, DateTime, String
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
-from decimal import Decimal # Importar Decimal
+from decimal import Decimal
+
 
 class StatusComanda(str, enum.Enum):
     ABERTA = "Aberta"
@@ -15,6 +16,7 @@ class StatusComanda(str, enum.Enum):
     CANCELADA = "Cancelada"
     EM_FIADO = "Em Fiado"
 
+
 class Comanda(Base):
     __tablename__ = "comandas"
 
@@ -23,35 +25,28 @@ class Comanda(Base):
     id_cliente_associado = Column(ForeignKey("clientes.id"), nullable=True)
     status_comanda = Column(SAEnum(StatusComanda), default=StatusComanda.ABERTA, nullable=False)
 
-    # Valor bruto dos itens (sem taxa, sem desconto)
+    # CORREÇÃO: valor_total_calculado agora é o valor final (itens + taxa - desconto)
     valor_total_calculado = Column(Numeric(10, 2), default=0.00, nullable=False)
 
     # Percentual da taxa de serviço (padrão 10.00, pode ser alterado por comanda)
     percentual_taxa_servico = Column(Numeric(5, 2), default=Decimal("10.00"), nullable=False)
-    # Valor calculado da taxa de serviço (baseado em valor_total_itens * percentual_taxa_servico / 100)
+    # Valor calculado da taxa de serviço (baseado em valor_final_comanda * percentual_taxa_servico / 100)
     valor_taxa_servico = Column(Numeric(10, 2), default=0.00, nullable=False)
 
     valor_desconto = Column(Numeric(10, 2), default=0.00, nullable=False)
+    # CORREÇÃO: valor_final_comanda agora é apenas o total dos itens
+    valor_final_comanda = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)
 
     # Valor pago diretamente (dinheiro, cartão, etc.)
     valor_pago = Column(Numeric(10, 2), default=0.00, nullable=False)
-    # Crédito do cliente aplicado *nesta* comanda
-    # valor_credito_usado = Column(Numeric(10, 2), default=0.00, nullable=False)
     # Valor registrado como fiado
     valor_fiado = Column(Numeric(10, 2), default=0.00, nullable=False)
-
-    # Crédito gerado *nesta* comanda por pagamento excedente
-    # valor_credito_gerado = Column(Numeric(10, 2), default=0.00, nullable=False)
 
     motivo_cancelamento = Column(Text, nullable=True)
     observacoes = Column(Text, nullable=True)
     qr_code_comanda_hash = Column(String, unique=True, index=True, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    # Renomeei valor_total_calculado para valor_total_itens para clareza
-    # O valor final a pagar será calculado dinamicamente ou em um serviço:
-    # (valor_total_itens + valor_taxa_servico - valor_desconto)
 
     mesa = relationship("Mesa", back_populates="comandas")
     cliente = relationship("Cliente", back_populates="comandas")
@@ -61,40 +56,69 @@ class Comanda(Base):
     venda = relationship("Venda", back_populates="comanda")
 
     def __init__(self, **kwargs):
-        # Aceita alias 'valor_total_calculado' e converte para 'valor_total_itens'
-        if 'valor_total_calculado' in kwargs:
-            kwargs['valor_total_calculado'] = kwargs.pop('valor_total_calculado')
+        if 'valor_final_comanda' in kwargs:
+            kwargs['valor_final_comanda'] = kwargs.pop('valor_final_comanda')
 
         if 'percentual_taxa_servico' not in kwargs:
             kwargs['percentual_taxa_servico'] = Decimal("10.00")
 
         super().__init__(**kwargs)
 
+        # Atualiza os valores ao criar a comanda
+        self.atualizar_valores_comanda()
+
         if not self.qr_code_comanda_hash:
             self.qr_code_comanda_hash = str(uuid.uuid4())
+
+    def atualizar_valores_comanda(self):
+        """
+        CORREÇÃO: Atualiza os valores da comanda conforme nova lógica:
+        - valor_final_comanda = apenas total dos itens
+        - valor_total_calculado = total dos itens + taxa - desconto
+        """
+        # valor_final_comanda agora é apenas o total dos itens (sem taxa, sem desconto)
+        total_itens = self.valor_final_comanda or Decimal("0.00")
+
+        # Calcular taxa baseada no total dos itens
+        percentual_taxa = self.percentual_taxa_servico or Decimal("0.00")
+        self.valor_taxa_servico = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
+
+        # valor_total_calculado agora é o valor final a pagar (itens + taxa - desconto)
+        taxa = self.valor_taxa_servico or Decimal("0.00")
+        desconto = self.valor_desconto or Decimal("0.00")
+        self.valor_total_calculado = max(Decimal("0.00"), total_itens + taxa - desconto)
+
+    # Método público para atualizar valores
+    def atualizar_valor_final_comanda(self):
+        """Método público mantido para compatibilidade - chama o método principal"""
+        self.atualizar_valores_comanda()
+
+    # Método privado mantido para compatibilidade
+    def _atualizar_valor_final(self):
+        """Método privado mantido para compatibilidade - chama o método principal"""
+        self.atualizar_valores_comanda()
 
     # Propriedade para calcular o valor total a pagar (incluindo taxa e desconto)
     @property
     def valor_final_a_pagar(self) -> Decimal:
-        total_itens = self.valor_total_calculado or Decimal("0.00")
-        taxa = self.valor_taxa_servico or Decimal("0.00")
-        desconto = self.valor_desconto or Decimal("0.00")
-        return max(Decimal("0.00"), total_itens + taxa - desconto)
+        """Retorna o valor total a pagar (valor_total_calculado)"""
+        return self.valor_total_calculado
 
-    # Propriedade para calcular o valor já coberto (pago + crédito usado + fiado)
+    # Propriedade para calcular o valor já coberto (pago + fiado)
     @property
     def valor_coberto(self) -> Decimal:
         pago = self.valor_pago or Decimal("0.00")
-        # credito_usado = self.valor_credito_usado or Decimal("0.00") # Comentado
         fiado = self.valor_fiado or Decimal("0.00")
-        # Nota: O valor fiado também conta como "coberto" para fins de status,
-        # mas a dívida real permanece.
-        # return pago + credito_usado + fiado # Comentado
-        return pago + fiado # Ajustado para remover crédito
+        return pago + fiado
 
     # Propriedade para calcular o saldo devedor atual
     @property
     def saldo_devedor(self) -> Decimal:
-        return max(Decimal("0.00"), self.valor_final_a_pagar - self.valor_coberto)
+        """Saldo devedor baseado no valor_total_calculado (valor final a pagar)"""
+        return max(Decimal("0.00"), self.valor_total_calculado - self.valor_coberto)
 
-
+    # Propriedade para obter apenas o total dos itens
+    @property
+    def total_itens(self) -> Decimal:
+        """Retorna apenas o total dos itens (valor_final_comanda)"""
+        return self.valor_final_comanda or Decimal("0.00")

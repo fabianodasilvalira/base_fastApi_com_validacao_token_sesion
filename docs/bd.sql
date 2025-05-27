@@ -1,276 +1,54 @@
--- --------------------------------------------------------
--- Servidor:                     localhost
--- Versão do servidor:           PostgreSQL 11.21, compiled by Visual C++ build 1914, 64-bit
--- OS do Servidor:               
--- HeidiSQL Versão:              12.10.0.7000
--- --------------------------------------------------------
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET NAMES  */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
--- Copiando estrutura para tabela public.alembic_version
-CREATE TABLE IF NOT EXISTS "alembic_version" (
-	"version_num" VARCHAR(32) NOT NULL,
-	PRIMARY KEY ("version_num")
-);
+-- Copiando dados para a tabela public.categorias: 3 rows
+/*!40000 ALTER TABLE "categorias" DISABLE KEYS */;
+INSERT INTO "categorias" ("id", "nome", "descricao", "imagem_url", "criado_em", "atualizado_em") VALUES
+	(1, 'Cervejas', 'Bebidas alcoólicas fermentadas, geralmente servidas geladas.', 'https://example.com/imagens/cervejas.jpg', '2025-05-27 11:19:16.208783+00', NULL),
+	(2, 'Destilados', 'Bebidas alcoólicas obtidas por destilação, como vodka, whisky e cachaça.', 'https://example.com/imagens/destilados.jpg', '2025-05-27 11:19:16.237336+00', NULL),
+	(3, 'Tiragosto', 'Petiscos e acompanhamentos servidos com bebidas, como frituras, queijos e calabresa.', 'https://example.com/imagens/tiragosto.jpg', '2025-05-27 11:19:16.243888+00', NULL);
+/*!40000 ALTER TABLE "categorias" ENABLE KEYS */;
 
--- Exportação de dados foi desmarcado.
+-- Copiando dados para a tabela public.clientes: 4 rows
+/*!40000 ALTER TABLE "clientes" DISABLE KEYS */;
+INSERT INTO "clientes" ("id", "nome", "telefone", "observacoes", "endereco", "created_at", "updated_at", "imagem_url") VALUES
+	(1, 'João da Silva', '(31) 99999-1234', 'Cliente frequente, prefere pagar no débito.', 'Rua das Flores, 123 - Centro', NULL, NULL, 'https://example.com/imagens/joao.jpg'),
+	(2, 'Maria Oliveira', '(31) 98888-5678', 'Gosta de tiragostos e cerveja artesanal.', 'Av. Brasil, 456 - Bairro São Pedro', NULL, NULL, 'https://example.com/imagens/maria.jpg'),
+	(3, 'Carlos Souza', '(31) 97777-7890', 'Sempre vem em grupo, solicita comanda separada.', 'Rua das Palmeiras, 789 - Jardim América', NULL, NULL, 'https://example.com/imagens/carlos.jpg'),
+	(4, 'Ana Paula Lima', '(31) 96666-4321', 'Cliente VIP. Tem saldo de crédito registrado.', 'Rua do Ouro, 101 - Savassi', NULL, NULL, 'https://example.com/imagens/ana.jpg');
+/*!40000 ALTER TABLE "clientes" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.categorias
-CREATE TABLE IF NOT EXISTS "categorias" (
-	"id" SERIAL NOT NULL,
-	"nome" VARCHAR(100) NOT NULL,
-	"descricao" TEXT NULL DEFAULT NULL,
-	"imagem_url" VARCHAR(255) NULL DEFAULT NULL,
-	"criado_em" TIMESTAMPTZ NULL DEFAULT now(),
-	"atualizado_em" TIMESTAMPTZ NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	UNIQUE ("nome")
-);
 
--- Exportação de dados foi desmarcado.
 
--- Copiando estrutura para tabela public.clientes
-CREATE TABLE IF NOT EXISTS "clientes" (
-	"id" SERIAL NOT NULL,
-	"nome" VARCHAR NOT NULL,
-	"telefone" VARCHAR NOT NULL,
-	"observacoes" TEXT NULL DEFAULT NULL,
-	"endereco" VARCHAR NULL DEFAULT NULL,
-	"created_at" TIMESTAMP NULL DEFAULT NULL,
-	"updated_at" TIMESTAMP NULL DEFAULT NULL,
-	"imagem_url" VARCHAR(255) NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	KEY ("imagem_url"),
-	KEY ("nome"),
-	KEY ("telefone")
-);
 
--- Exportação de dados foi desmarcado.
+-- Copiando dados para a tabela public.mesas: 4 rows
+/*!40000 ALTER TABLE "mesas" DISABLE KEYS */;
+INSERT INTO "mesas" ("id", "numero_identificador", "capacidade", "status", "qr_code_hash", "id_cliente_associado", "ativa_para_pedidos", "criado_em", "atualizado_em") VALUES
+	(1, 'MESA-01', 4, 'DISPONIVEL', 'hash_qr_01', 1, 'true', '2025-05-27 11:20:10.094521+00', NULL),
+	(2, 'MESA-02', 6, 'DISPONIVEL', 'hash_qr_02', 2, 'true', '2025-05-27 11:20:10.094521+00', NULL),
+	(3, 'MESA-03', 2, 'DISPONIVEL', 'hash_qr_03', 3, 'true', '2025-05-27 11:20:10.094521+00', NULL),
+	(4, 'MESA-04', 8, 'DISPONIVEL', 'hash_qr_04', 4, 'true', '2025-05-27 11:20:10.094521+00', NULL);
+/*!40000 ALTER TABLE "mesas" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.comandas
-CREATE TABLE IF NOT EXISTS "comandas" (
-	"id" SERIAL NOT NULL,
-	"id_mesa" INTEGER NOT NULL,
-	"id_cliente_associado" INTEGER NULL DEFAULT NULL,
-	"status_comanda" UNKNOWN NOT NULL,
-	"valor_total_calculado" NUMERIC(10,2) NOT NULL,
-	"valor_pago" NUMERIC(10,2) NOT NULL,
-	"valor_fiado" NUMERIC(10,2) NOT NULL,
-	"percentual_taxa_servico" NUMERIC(10,2) NOT NULL,
-	"motivo_cancelamento" TEXT NULL DEFAULT NULL,
-	"observacoes" TEXT NULL DEFAULT NULL,
-	"qr_code_comanda_hash" VARCHAR NULL DEFAULT NULL,
-	"created_at" TIMESTAMP NULL DEFAULT NULL,
-	"updated_at" TIMESTAMP NULL DEFAULT NULL,
-	"valor_taxa_servico" NUMERIC(10,2) NOT NULL,
-	"valor_desconto" NUMERIC(10,2) NOT NULL,
-	UNIQUE ("qr_code_comanda_hash"),
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	CONSTRAINT "comandas_id_cliente_associado_fkey" FOREIGN KEY ("id_cliente_associado") REFERENCES "clientes" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "comandas_id_mesa_fkey" FOREIGN KEY ("id_mesa") REFERENCES "mesas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
 
--- Exportação de dados foi desmarcado.
 
--- Copiando estrutura para tabela public.fiados
-CREATE TABLE IF NOT EXISTS "fiados" (
-	"id" SERIAL NOT NULL,
-	"id_comanda" INTEGER NOT NULL,
-	"id_cliente" INTEGER NOT NULL,
-	"id_usuario_registrou" INTEGER NULL DEFAULT NULL,
-	"valor_original" NUMERIC(10,2) NOT NULL,
-	"valor_devido" NUMERIC(10,2) NOT NULL,
-	"status_fiado" UNKNOWN NOT NULL,
-	"data_vencimento" DATE NULL DEFAULT NULL,
-	"observacoes" TEXT NULL DEFAULT NULL,
-	"data_registro" TIMESTAMP NULL DEFAULT NULL,
-	"updated_at" TIMESTAMP NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	CONSTRAINT "fiados_id_cliente_fkey" FOREIGN KEY ("id_cliente") REFERENCES "clientes" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "fiados_id_comanda_fkey" FOREIGN KEY ("id_comanda") REFERENCES "comandas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "fiados_id_usuario_registrou_fkey" FOREIGN KEY ("id_usuario_registrou") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
 
--- Exportação de dados foi desmarcado.
+-- Copiando dados para a tabela public.produtos: 15 rows
+/*!40000 ALTER TABLE "produtos" DISABLE KEYS */;
+INSERT INTO "produtos" ("id", "nome", "descricao", "preco_unitario", "disponivel", "imagem_url", "criado_em", "atualizado_em", "categoria_id") VALUES
+	(1, 'Skol', 'Cerveja leve e refrescante', 5.50, 'true', 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Skol_logo.svg/1200px-Skol_logo.svg.png', '2025-05-27 11:21:19.734175+00', NULL, 1),
+	(2, 'Brahma', 'Cerveja tradicional brasileira', 5.80, 'true', 'https://upload.wikimedia.org/wikipedia/commons/4/44/Brahma_logo.svg', '2025-05-27 11:21:19.734175+00', NULL, 1),
+	(3, 'Heineken', 'Cerveja premium importada', 7.20, 'true', 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Heineken_logo.svg/1200px-Heineken_logo.svg.png', '2025-05-27 11:21:19.734175+00', NULL, 1),
+	(4, 'Stella Artois', 'Cerveja belga clássica', 8.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/7/79/Stella_Artois_logo.svg', '2025-05-27 11:21:19.734175+00', NULL, 1),
+	(5, 'Budweiser', 'Cerveja americana saborosa', 6.50, 'true', 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Budweiser_logo.svg/1200px-Budweiser_logo.svg.png', '2025-05-27 11:21:19.734175+00', NULL, 1),
+	(6, 'Whisky Johnnie Walker', 'Whisky escocês blended', 120.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/8/8c/Johnnie_Walker_Black_Label_1L_bottle.jpg', '2025-05-27 11:21:19.745414+00', NULL, 2),
+	(7, 'Vodka Absolut', 'Vodka sueca pura e suave', 90.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Absolut_Vodka_bottle.jpg', '2025-05-27 11:21:19.745414+00', NULL, 2),
+	(8, 'Cachaça 51', 'Cachaça brasileira tradicional', 30.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/1/1e/Cachaca_51.jpg', '2025-05-27 11:21:19.745414+00', NULL, 2),
+	(9, 'Gin Tanqueray', 'Gin premium com sabor intenso', 110.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/0/0c/Tanqueray_Gin_Bottle.jpg', '2025-05-27 11:21:19.745414+00', NULL, 2),
+	(10, 'Rum Bacardi', 'Rum clássico para drinks', 85.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Bacardi_Light_Rum_750ml_Bottle.jpg', '2025-05-27 11:21:19.745414+00', NULL, 2),
+	(11, 'Batata Frita', 'Porção de batatas fritas crocantes', 15.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/6/68/Canadian_French_fries_with_mayo.jpg', '2025-05-27 11:21:19.752207+00', NULL, 3),
+	(12, 'Azeitonas', 'Porção de azeitonas temperadas', 12.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/6/6a/Olives_mixed_01.jpg', '2025-05-27 11:21:19.752207+00', NULL, 3),
+	(13, 'Amendoim', 'Amendoim torrado e salgado', 8.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/3/37/Peanuts-raw.jpg', '2025-05-27 11:21:19.752207+00', NULL, 3),
+	(14, 'Calabresa Acebolada', 'Calabresa frita com cebola', 20.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/0/0f/Calabresa_e_acebolada.jpg', '2025-05-27 11:21:19.752207+00', NULL, 3),
+	(15, 'Pastel', 'Pastel frito com recheio variado', 10.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/6/6d/Pastel.jpg', '2025-05-27 11:21:19.752207+00', NULL, 3);
+/*!40000 ALTER TABLE "produtos" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.itens_pedido
-CREATE TABLE IF NOT EXISTS "itens_pedido" (
-	"id" SERIAL NOT NULL,
-	"id_pedido" INTEGER NOT NULL,
-	"id_comanda" INTEGER NOT NULL,
-	"id_produto" INTEGER NOT NULL,
-	"quantidade" INTEGER NOT NULL,
-	"preco_unitario" NUMERIC(10,2) NOT NULL,
-	"observacoes" TEXT NULL DEFAULT NULL,
-	"status" UNKNOWN NOT NULL,
-	"created_at" TIMESTAMP NULL DEFAULT NULL,
-	"updated_at" TIMESTAMP NULL DEFAULT NULL,
-	"preco_total" NUMERIC(10,2) NOT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	CONSTRAINT "itens_pedido_id_comanda_fkey" FOREIGN KEY ("id_comanda") REFERENCES "comandas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "itens_pedido_id_pedido_fkey" FOREIGN KEY ("id_pedido") REFERENCES "pedidos" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "itens_pedido_id_produto_fkey" FOREIGN KEY ("id_produto") REFERENCES "produtos" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
--- Exportação de dados foi desmarcado.
-
--- Copiando estrutura para tabela public.mesas
-CREATE TABLE IF NOT EXISTS "mesas" (
-	"id" SERIAL NOT NULL,
-	"numero_identificador" VARCHAR NOT NULL,
-	"capacidade" INTEGER NULL DEFAULT NULL,
-	"status" UNKNOWN NOT NULL,
-	"qr_code_hash" VARCHAR NULL DEFAULT NULL,
-	"id_cliente_associado" INTEGER NULL DEFAULT NULL,
-	"ativa_para_pedidos" BOOLEAN NOT NULL,
-	"criado_em" TIMESTAMPTZ NULL DEFAULT now(),
-	"atualizado_em" TIMESTAMPTZ NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	UNIQUE ("numero_identificador"),
-	UNIQUE ("qr_code_hash"),
-	CONSTRAINT "mesas_id_cliente_associado_fkey" FOREIGN KEY ("id_cliente_associado") REFERENCES "clientes" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
--- Exportação de dados foi desmarcado.
-
--- Copiando estrutura para tabela public.pagamentos
-CREATE TABLE IF NOT EXISTS "pagamentos" (
-	"id" SERIAL NOT NULL,
-	"id_comanda" INTEGER NOT NULL,
-	"id_cliente" INTEGER NULL DEFAULT NULL,
-	"id_usuario_registrou" INTEGER NULL DEFAULT NULL,
-	"id_venda" INTEGER NULL DEFAULT NULL,
-	"id_pedido" INTEGER NULL DEFAULT NULL,
-	"valor_pago" NUMERIC(10,2) NOT NULL,
-	"metodo_pagamento" UNKNOWN NOT NULL,
-	"status_pagamento" UNKNOWN NOT NULL,
-	"detalhes_transacao" VARCHAR NULL DEFAULT NULL,
-	"observacoes" TEXT NULL DEFAULT NULL,
-	"data_pagamento" TIMESTAMP NULL DEFAULT NULL,
-	"updated_at" TIMESTAMP NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	CONSTRAINT "pagamentos_id_cliente_fkey" FOREIGN KEY ("id_cliente") REFERENCES "clientes" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "pagamentos_id_comanda_fkey" FOREIGN KEY ("id_comanda") REFERENCES "comandas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "pagamentos_id_pedido_fkey" FOREIGN KEY ("id_pedido") REFERENCES "pedidos" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "pagamentos_id_usuario_registrou_fkey" FOREIGN KEY ("id_usuario_registrou") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "pagamentos_id_venda_fkey" FOREIGN KEY ("id_venda") REFERENCES "vendas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
--- Exportação de dados foi desmarcado.
-
--- Copiando estrutura para tabela public.pedidos
-CREATE TABLE IF NOT EXISTS "pedidos" (
-	"id" SERIAL NOT NULL,
-	"id_comanda" INTEGER NOT NULL,
-	"id_usuario_registrou" INTEGER NULL DEFAULT NULL,
-	"mesa_id" INTEGER NULL DEFAULT NULL,
-	"tipo_pedido" UNKNOWN NOT NULL,
-	"status_geral_pedido" UNKNOWN NOT NULL,
-	"observacoes_pedido" TEXT NULL DEFAULT NULL,
-	"motivo_cancelamento" TEXT NULL DEFAULT NULL,
-	"created_at" TIMESTAMP NULL DEFAULT NULL,
-	"updated_at" TIMESTAMP NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	CONSTRAINT "pedidos_id_comanda_fkey" FOREIGN KEY ("id_comanda") REFERENCES "comandas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "pedidos_id_usuario_registrou_fkey" FOREIGN KEY ("id_usuario_registrou") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "pedidos_mesa_id_fkey" FOREIGN KEY ("mesa_id") REFERENCES "mesas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
--- Exportação de dados foi desmarcado.
-
--- Copiando estrutura para tabela public.produtos
-CREATE TABLE IF NOT EXISTS "produtos" (
-	"id" SERIAL NOT NULL,
-	"nome" VARCHAR NOT NULL,
-	"descricao" TEXT NULL DEFAULT NULL,
-	"preco_unitario" NUMERIC(10,2) NOT NULL,
-	"disponivel" BOOLEAN NULL DEFAULT NULL,
-	"imagem_url" VARCHAR(255) NULL DEFAULT NULL,
-	"criado_em" TIMESTAMPTZ NULL DEFAULT now(),
-	"atualizado_em" TIMESTAMPTZ NULL DEFAULT NULL,
-	"categoria_id" INTEGER NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	KEY ("imagem_url"),
-	KEY ("nome"),
-	CONSTRAINT "produtos_categoria_id_fkey" FOREIGN KEY ("categoria_id") REFERENCES "categorias" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
--- Exportação de dados foi desmarcado.
-
--- Copiando estrutura para tabela public.users
-CREATE TABLE IF NOT EXISTS "users" (
-	"id" SERIAL NOT NULL,
-	"email" VARCHAR NOT NULL,
-	"username" VARCHAR NULL DEFAULT NULL,
-	"hashed_password" VARCHAR NOT NULL,
-	"first_name" VARCHAR NULL DEFAULT NULL,
-	"last_name" VARCHAR NULL DEFAULT NULL,
-	"phone" VARCHAR NULL DEFAULT NULL,
-	"imagem_url" VARCHAR(255) NULL DEFAULT NULL,
-	"is_verified" BOOLEAN NULL DEFAULT NULL,
-	"is_active" BOOLEAN NULL DEFAULT NULL,
-	"is_superuser" BOOLEAN NULL DEFAULT NULL,
-	"created_at" TIMESTAMP NULL DEFAULT NULL,
-	"updated_at" TIMESTAMP NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	UNIQUE ("phone"),
-	UNIQUE ("email"),
-	KEY ("id"),
-	KEY ("imagem_url"),
-	UNIQUE ("username")
-);
-
--- Exportação de dados foi desmarcado.
-
--- Copiando estrutura para tabela public.vendas
-CREATE TABLE IF NOT EXISTS "vendas" (
-	"id" SERIAL NOT NULL,
-	"valor_total" NUMERIC(10,2) NOT NULL,
-	"data_venda" DATE NOT NULL,
-	"usuario_id" INTEGER NOT NULL,
-	"cliente_id" INTEGER NULL DEFAULT NULL,
-	"comanda_id" INTEGER NULL DEFAULT NULL,
-	"criado_em" TIMESTAMPTZ NULL DEFAULT now(),
-	"atualizado_em" TIMESTAMPTZ NULL DEFAULT NULL,
-	PRIMARY KEY ("id"),
-	KEY ("id"),
-	CONSTRAINT "vendas_cliente_id_fkey" FOREIGN KEY ("cliente_id") REFERENCES "clientes" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "vendas_comanda_id_fkey" FOREIGN KEY ("comanda_id") REFERENCES "comandas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "vendas_usuario_id_fkey" FOREIGN KEY ("usuario_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
--- Exportação de dados foi desmarcado.
-
--- Copiando estrutura para tabela public.venda_produto
-CREATE TABLE IF NOT EXISTS "venda_produto" (
-	"id_venda" INTEGER NOT NULL,
-	"id_produto" INTEGER NOT NULL,
-	"quantidade_vendida" INTEGER NOT NULL,
-	"preco_unitario_na_venda" DOUBLE PRECISION NOT NULL,
-	PRIMARY KEY ("id_venda", "id_produto"),
-	CONSTRAINT "venda_produto_id_produto_fkey" FOREIGN KEY ("id_produto") REFERENCES "produtos" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,
-	CONSTRAINT "venda_produto_id_venda_fkey" FOREIGN KEY ("id_venda") REFERENCES "vendas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
--- Exportação de dados foi desmarcado.
-
-/*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
-/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
-/*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40111 SET SQL_NOTES=IFNULL(@OLD_SQL_NOTES, 1) */;
