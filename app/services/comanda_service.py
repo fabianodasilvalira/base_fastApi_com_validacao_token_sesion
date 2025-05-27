@@ -1,4 +1,3 @@
-# app/services/comanda_service.py
 import logging
 import uuid
 from sqlalchemy import select, or_, update
@@ -152,10 +151,13 @@ async def registrar_pagamento_na_comanda(db: AsyncSession, comanda_id: int,
     # Atualiza o valor pago acumulado
     comanda.valor_pago = (comanda.valor_pago or Decimal(0)) + pagamento_data.valor_pago
 
-    # CORREÇÃO: Atualiza o status baseado no valor_total_calculado (valor final a pagar)
-    if comanda.valor_pago >= (comanda.valor_total_calculado or Decimal(0)):
+    # MODIFICAÇÃO: Recalcula o valor_total_calculado (saldo devedor restante)
+    comanda.atualizar_valores_comanda()
+
+    # Atualiza o status baseado no saldo devedor restante (valor_total_calculado)
+    if comanda.valor_total_calculado <= Decimal(0):
         comanda.status_comanda = StatusComanda.PAGA_TOTALMENTE
-    elif comanda.valor_pago > 0:
+    elif comanda.valor_pago > 0 or comanda.valor_fiado > 0 or comanda.valor_credito_usado > 0:
         comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
 
     await db.commit()
@@ -179,6 +181,10 @@ async def registrar_saldo_como_fiado(db: AsyncSession, comanda_id: int, fiado_da
     db.add(novo_fiado)
 
     comanda.valor_fiado = (comanda.valor_fiado or Decimal(0)) + fiado_data.valor_devido
+
+    # MODIFICAÇÃO: Recalcula o valor_total_calculado (saldo devedor restante)
+    comanda.atualizar_valores_comanda()
+
     comanda.status_comanda = StatusComanda.EM_FIADO
 
     await db.commit()
@@ -232,9 +238,9 @@ async def buscar_mesa(db: AsyncSession, mesa_id: int):
 
 async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_commit: bool = True) -> Optional[Comanda]:
     """
-    CORREÇÃO: Recalcula os valores conforme nova lógica:
+    MODIFICAÇÃO: Recalcula os valores onde valor_total_calculado representa o saldo devedor restante:
     - valor_final_comanda = apenas total dos itens
-    - valor_total_calculado = total dos itens + taxa - desconto
+    - valor_total_calculado = (total dos itens + taxa - desconto) - (valor_pago + valor_fiado + valor_credito_usado)
     """
     try:
         logger.info(f"🔄 Iniciando recálculo da comanda {id_comanda}")
@@ -247,10 +253,15 @@ async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_co
         )
         total_itens = Decimal(str(result_totais.scalar() or 0))
 
-        # 2. Buscar dados da comanda para calcular taxa e desconto
+        # 2. Buscar dados da comanda para calcular taxa, desconto e valores pagos
         result_comanda = await db.execute(
-            select(Comanda.percentual_taxa_servico, Comanda.valor_desconto)
-            .where(Comanda.id == id_comanda)
+            select(
+                Comanda.percentual_taxa_servico,
+                Comanda.valor_desconto,
+                Comanda.valor_pago,
+                Comanda.valor_fiado,
+                Comanda.valor_credito_usado
+            ).where(Comanda.id == id_comanda)
         )
         comanda_data = result_comanda.first()
 
@@ -263,9 +274,16 @@ async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_co
         valor_taxa = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
         desconto = comanda_data.valor_desconto or Decimal("0.0")
 
-        # CORREÇÃO: Nova lógica de campos
+        # Calcular valor total original (antes dos pagamentos)
+        valor_total_original = max(Decimal("0.0"), total_itens + valor_taxa - desconto)
+
+        # MODIFICAÇÃO: valor_total_calculado agora é o saldo devedor restante
+        valor_pago = comanda_data.valor_pago or Decimal("0.0")
+        valor_fiado = comanda_data.valor_fiado or Decimal("0.0")
+        valor_credito = comanda_data.valor_credito_usado or Decimal("0.0")
+
         valor_final_comanda = total_itens  # apenas total dos itens
-        valor_total_calculado = max(Decimal("0.0"), total_itens + valor_taxa - desconto)  # valor final a pagar
+        valor_total_calculado = max(Decimal("0.0"), valor_total_original - valor_pago - valor_fiado - valor_credito)
 
         # 4. UPDATE DIRETO no banco - GARANTIA DE PERSISTÊNCIA
         await db.execute(
@@ -274,7 +292,7 @@ async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_co
             .values(
                 valor_final_comanda=valor_final_comanda,  # apenas total dos itens
                 valor_taxa_servico=valor_taxa,
-                valor_total_calculado=valor_total_calculado,  # valor final a pagar
+                valor_total_calculado=valor_total_calculado,  # saldo devedor restante
                 updated_at=datetime.now()
             )
         )
@@ -283,11 +301,11 @@ async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_co
         if fazer_commit:
             await db.commit()
             logger.info(
-                f"✅ Comanda {id_comanda} recalculada e COMMITADA: Total Itens={total_itens}, Taxa={valor_taxa}, Valor Final a Pagar={valor_total_calculado}")
+                f"✅ Comanda {id_comanda} recalculada e COMMITADA: Total Itens={total_itens}, Taxa={valor_taxa}, Saldo Devedor={valor_total_calculado}")
         else:
             await db.flush()
             logger.info(
-                f"🔄 Comanda {id_comanda} recalculada (FLUSH): Total Itens={total_itens}, Taxa={valor_taxa}, Valor Final a Pagar={valor_total_calculado}")
+                f"🔄 Comanda {id_comanda} recalculada (FLUSH): Total Itens={total_itens}, Taxa={valor_taxa}, Saldo Devedor={valor_total_calculado}")
 
         # 6. Retornar comanda atualizada
         result_updated = await db.execute(
@@ -296,7 +314,7 @@ async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_co
         comanda_atualizada = result_updated.scalar_one_or_none()
 
         logger.info(
-            f"🎯 Recálculo concluído - Comanda {id_comanda} | Total Itens: {comanda_atualizada.valor_final_comanda if comanda_atualizada else 'N/A'} | Valor Final a Pagar: {comanda_atualizada.valor_total_calculado if comanda_atualizada else 'N/A'}")
+            f"🎯 Recálculo concluído - Comanda {id_comanda} | Total Itens: {comanda_atualizada.valor_final_comanda if comanda_atualizada else 'N/A'} | Saldo Devedor: {comanda_atualizada.valor_total_calculado if comanda_atualizada else 'N/A'}")
         return comanda_atualizada
 
     except Exception as e:

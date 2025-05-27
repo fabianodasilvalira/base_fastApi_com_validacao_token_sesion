@@ -1,4 +1,3 @@
-# app/db/models/comanda.py
 import enum
 import uuid
 from sqlalchemy import Column, ForeignKey, Enum as SAEnum, Numeric, Text, Integer, DateTime, String
@@ -25,7 +24,7 @@ class Comanda(Base):
     id_cliente_associado = Column(ForeignKey("clientes.id"), nullable=True)
     status_comanda = Column(SAEnum(StatusComanda), default=StatusComanda.ABERTA, nullable=False)
 
-    # CORREÇÃO: valor_total_calculado agora é o valor final (itens + taxa - desconto)
+    # MODIFICAÇÃO: valor_total_calculado agora representa o saldo devedor restante
     valor_total_calculado = Column(Numeric(10, 2), default=0.00, nullable=False)
 
     # Percentual da taxa de serviço (padrão 10.00, pode ser alterado por comanda)
@@ -34,13 +33,15 @@ class Comanda(Base):
     valor_taxa_servico = Column(Numeric(10, 2), default=0.00, nullable=False)
 
     valor_desconto = Column(Numeric(10, 2), default=0.00, nullable=False)
-    # CORREÇÃO: valor_final_comanda agora é apenas o total dos itens
+    # valor_final_comanda = total dos itens (sem taxa, sem desconto)
     valor_final_comanda = Column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)
 
     # Valor pago diretamente (dinheiro, cartão, etc.)
     valor_pago = Column(Numeric(10, 2), default=0.00, nullable=False)
     # Valor registrado como fiado
     valor_fiado = Column(Numeric(10, 2), default=0.00, nullable=False)
+    # Valor de crédito usado (se aplicável)
+    valor_credito_usado = Column(Numeric(10, 2), default=0.00, nullable=False)
 
     motivo_cancelamento = Column(Text, nullable=True)
     observacoes = Column(Text, nullable=True)
@@ -72,21 +73,29 @@ class Comanda(Base):
 
     def atualizar_valores_comanda(self):
         """
-        CORREÇÃO: Atualiza os valores da comanda conforme nova lógica:
+        MODIFICAÇÃO: Atualiza os valores da comanda onde valor_total_calculado representa o saldo devedor restante:
         - valor_final_comanda = apenas total dos itens
-        - valor_total_calculado = total dos itens + taxa - desconto
+        - valor_total_calculado = (total dos itens + taxa - desconto) - (valor_pago + valor_fiado + valor_credito_usado)
         """
-        # valor_final_comanda agora é apenas o total dos itens (sem taxa, sem desconto)
+        # valor_final_comanda = total dos itens (sem taxa, sem desconto)
         total_itens = self.valor_final_comanda or Decimal("0.00")
 
         # Calcular taxa baseada no total dos itens
         percentual_taxa = self.percentual_taxa_servico or Decimal("0.00")
         self.valor_taxa_servico = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
 
-        # valor_total_calculado agora é o valor final a pagar (itens + taxa - desconto)
+        # Calcular valor total original (itens + taxa - desconto)
         taxa = self.valor_taxa_servico or Decimal("0.00")
         desconto = self.valor_desconto or Decimal("0.00")
-        self.valor_total_calculado = max(Decimal("0.00"), total_itens + taxa - desconto)
+        valor_total_original = max(Decimal("0.00"), total_itens + taxa - desconto)
+
+        # MODIFICAÇÃO: valor_total_calculado agora é o saldo devedor restante
+        valor_pago = self.valor_pago or Decimal("0.00")
+        valor_fiado = self.valor_fiado or Decimal("0.00")
+        valor_credito = self.valor_credito_usado or Decimal("0.00")
+
+        self.valor_total_calculado = max(Decimal("0.00"),
+                                         valor_total_original - valor_pago - valor_fiado - valor_credito)
 
     # Método público para atualizar valores
     def atualizar_valor_final_comanda(self):
@@ -98,24 +107,34 @@ class Comanda(Base):
         """Método privado mantido para compatibilidade - chama o método principal"""
         self.atualizar_valores_comanda()
 
-    # Propriedade para calcular o valor total a pagar (incluindo taxa e desconto)
+    # Propriedade para calcular o valor total original (antes dos pagamentos)
+    @property
+    def valor_total_original(self) -> Decimal:
+        """Retorna o valor total original (itens + taxa - desconto) antes dos pagamentos"""
+        total_itens = self.valor_final_comanda or Decimal("0.00")
+        taxa = self.valor_taxa_servico or Decimal("0.00")
+        desconto = self.valor_desconto or Decimal("0.00")
+        return max(Decimal("0.00"), total_itens + taxa - desconto)
+
+    # Propriedade para calcular o valor final a pagar (agora é o valor_total_calculado)
     @property
     def valor_final_a_pagar(self) -> Decimal:
-        """Retorna o valor total a pagar (valor_total_calculado)"""
+        """Retorna o saldo devedor restante (valor_total_calculado)"""
         return self.valor_total_calculado
 
-    # Propriedade para calcular o valor já coberto (pago + fiado)
+    # Propriedade para calcular o valor já coberto (pago + fiado + crédito)
     @property
     def valor_coberto(self) -> Decimal:
         pago = self.valor_pago or Decimal("0.00")
         fiado = self.valor_fiado or Decimal("0.00")
-        return pago + fiado
+        credito = self.valor_credito_usado or Decimal("0.00")
+        return pago + fiado + credito
 
-    # Propriedade para calcular o saldo devedor atual
+    # Propriedade para calcular o saldo devedor atual (agora é o próprio valor_total_calculado)
     @property
     def saldo_devedor(self) -> Decimal:
-        """Saldo devedor baseado no valor_total_calculado (valor final a pagar)"""
-        return max(Decimal("0.00"), self.valor_total_calculado - self.valor_coberto)
+        """Saldo devedor restante (mesmo que valor_total_calculado)"""
+        return self.valor_total_calculado
 
     # Propriedade para obter apenas o total dos itens
     @property

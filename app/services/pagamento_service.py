@@ -1,4 +1,3 @@
-# app/services/pagamento_service.py
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError, DataError
@@ -14,12 +13,13 @@ from app.models.comanda import Comanda, StatusComanda
 from app.models.fiado import Fiado, StatusFiado
 from app.schemas.pagamento_schemas import PagamentoCreateSchema, PagamentoUpdateSchema
 
-# CORREÇÃO: Função auxiliar atualizada para nova lógica de campos
+
+# MODIFICAÇÃO: Função auxiliar atualizada para nova lógica onde valor_total_calculado é o saldo devedor restante
 async def _calcular_valores_e_status_comanda(comanda: Comanda, db_session: AsyncSession):
     """
     Recalcula o status da comanda conforme nova lógica:
     - valor_final_comanda = apenas total dos itens
-    - valor_total_calculado = valor final a pagar (itens + taxa - desconto)
+    - valor_total_calculado = saldo devedor restante (valor original - pagamentos)
     """
 
     # Recalcular valor da taxa de serviço baseado no total dos itens (valor_final_comanda)
@@ -27,11 +27,19 @@ async def _calcular_valores_e_status_comanda(comanda: Comanda, db_session: Async
     percentual_taxa = comanda.percentual_taxa_servico or Decimal("0.00")
     comanda.valor_taxa_servico = (total_itens * percentual_taxa / Decimal("100.00")).quantize(Decimal("0.01"))
 
-    # CORREÇÃO: Atualizar o valor_total_calculado (valor final a pagar)
+    # Calcular valor total original (antes dos pagamentos)
     desconto = comanda.valor_desconto or Decimal("0.00")
-    comanda.valor_total_calculado = max(Decimal("0.00"), total_itens + comanda.valor_taxa_servico - desconto)
+    valor_total_original = max(Decimal("0.00"), total_itens + comanda.valor_taxa_servico - desconto)
 
-    # Valor final que o cliente deve pagar (agora é valor_total_calculado)
+    # MODIFICAÇÃO: Atualizar o valor_total_calculado como saldo devedor restante
+    valor_pago = comanda.valor_pago or Decimal("0.00")
+    valor_fiado = comanda.valor_fiado or Decimal("0.00")
+    valor_credito = comanda.valor_credito_usado or Decimal("0.00")
+
+    comanda.valor_total_calculado = max(Decimal("0.00"),
+                                        valor_total_original - valor_pago - valor_fiado - valor_credito)
+
+    # Valor devido real (saldo devedor restante)
     valor_devido_real = comanda.valor_total_calculado
     # Valor total coberto por pagamentos diretos e fiado
     valor_total_coberto = comanda.valor_coberto
@@ -43,24 +51,20 @@ async def _calcular_valores_e_status_comanda(comanda: Comanda, db_session: Async
     status_anterior = comanda.status_comanda
     novo_status = StatusComanda.ABERTA  # Default
 
-    if valor_devido_real <= Decimal("0.00"):  # Comanda sem valor a pagar
-        if valor_total_coberto > Decimal("0.00"):
-            novo_status = StatusComanda.PAGA_TOTALMENTE
-        else:
-            novo_status = StatusComanda.ABERTA
-    elif valor_total_coberto >= valor_devido_real:
+    # MODIFICAÇÃO: Status baseado no saldo devedor restante (valor_total_calculado)
+    if valor_devido_real <= Decimal("0.00"):  # Não há mais saldo devedor
         novo_status = StatusComanda.PAGA_TOTALMENTE
     # Condição para EM_FIADO: todo o valor coberto é igual ao valor fiado (e maior que zero)
     elif valor_total_coberto > Decimal("0.00") and valor_total_coberto == valor_fiado_registrado:
         novo_status = StatusComanda.EM_FIADO
-    # Condição para PAGA_PARCIALMENTE: pagou/cobriu algo, mas não tudo, e não é só fiado
+    # Condição para PAGA_PARCIALMENTE: pagou/cobriu algo, mas ainda há saldo devedor
     elif valor_total_coberto > Decimal("0.00"):
         novo_status = StatusComanda.PAGA_PARCIALMENTE
     else:  # Nenhum valor coberto
         novo_status = StatusComanda.ABERTA
 
     comanda.status_comanda = novo_status
-    return None  # Não retorna mais cliente pois não há atualização de saldo
+    return None
 
 
 # --- Funções listar_pagamentos e obter_pagamento mantidas como antes ---
@@ -84,11 +88,11 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
     if not comanda:
         raise HTTPException(status_code=400, detail=f"Comanda ID {pagamento_data.id_comanda} não encontrada.")
 
-    # CORREÇÃO: Validações da Comanda usando a propriedade saldo_devedor (baseada em valor_total_calculado)
-    saldo_devedor_atual = comanda.saldo_devedor
+    # MODIFICAÇÃO: Validações da Comanda usando o saldo devedor restante (valor_total_calculado)
+    saldo_devedor_atual = comanda.valor_total_calculado
 
     if saldo_devedor_atual <= Decimal("0.00"):
-        pass  # A comanda já está paga ou não tem valor, mas permite registrar pagamento
+        pass  # A comanda já está paga, mas permite registrar pagamento
 
     # Validação específica para FIADO: id_cliente é obrigatório
     cliente_pagamento = None
@@ -99,7 +103,8 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
         if not cliente_pagamento:
             raise HTTPException(status_code=400, detail=f"Cliente ID {pagamento_data.id_cliente} não encontrado.")
         if comanda.id_cliente_associado and comanda.id_cliente_associado != pagamento_data.id_cliente:
-            raise HTTPException(status_code=400, detail=f"O cliente do pagamento (ID {pagamento_data.id_cliente}) não corresponde ao cliente associado à comanda (ID {comanda.id_cliente_associado}).")
+            raise HTTPException(status_code=400,
+                                detail=f"O cliente do pagamento (ID {pagamento_data.id_cliente}) não corresponde ao cliente associado à comanda (ID {comanda.id_cliente_associado}).")
         # Se a comanda não tem cliente, associa o do pagamento
         if not comanda.id_cliente_associado:
             comanda.id_cliente_associado = pagamento_data.id_cliente
@@ -113,7 +118,8 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
         usuario_query = select(User).where(User.id == pagamento_data.id_usuario_registrou)
         usuario_result = await db_session.execute(usuario_query)
         if not usuario_result.scalars().first():
-            raise HTTPException(status_code=400, detail=f"Usuário ID {pagamento_data.id_usuario_registrou} não encontrado.")
+            raise HTTPException(status_code=400,
+                                detail=f"Usuário ID {pagamento_data.id_usuario_registrou} não encontrado.")
 
     try:
         novo_pagamento = Pagamento(**pagamento_data.dict())
@@ -143,7 +149,7 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
             )
             db_session.add(novo_fiado_record)
 
-        # Calcular status usando nova lógica
+        # MODIFICAÇÃO: Calcular status usando nova lógica onde valor_total_calculado é o saldo devedor restante
         cliente_com_saldo_atualizado = await _calcular_valores_e_status_comanda(comanda, db_session)
         db_session.add(comanda)
         if cliente_com_saldo_atualizado:
@@ -214,7 +220,8 @@ async def atualizar_pagamento(db_session: AsyncSession, pagamento_id: int, dados
             if not cliente_novo_obj:
                 raise HTTPException(status_code=400, detail=f"Cliente ID {id_cliente_novo_pagamento} não encontrado.")
             if comanda.id_cliente_associado and comanda.id_cliente_associado != id_cliente_novo_pagamento:
-                raise HTTPException(status_code=400, detail=f"O novo cliente do pagamento não corresponde ao cliente da comanda.")
+                raise HTTPException(status_code=400,
+                                    detail=f"O novo cliente do pagamento não corresponde ao cliente da comanda.")
             if not comanda.id_cliente_associado:
                 comanda.id_cliente_associado = id_cliente_novo_pagamento
                 comanda.cliente = cliente_novo_obj
@@ -225,7 +232,8 @@ async def atualizar_pagamento(db_session: AsyncSession, pagamento_id: int, dados
         # Determinar se precisa recalcular valores da comanda
         mudanca_valor = valor_pago_novo != valor_pago_antigo
         mudanca_metodo = metodo_novo != metodo_antigo
-        mudanca_cliente_relevante = (id_cliente_novo_pagamento != id_cliente_antigo_pagamento) and (metodo_novo == MetodoPagamento.FIADO or metodo_antigo == MetodoPagamento.FIADO)
+        mudanca_cliente_relevante = (id_cliente_novo_pagamento != id_cliente_antigo_pagamento) and (
+                    metodo_novo == MetodoPagamento.FIADO or metodo_antigo == MetodoPagamento.FIADO)
 
         atualizar_valores_comanda = mudanca_valor or mudanca_metodo or mudanca_cliente_relevante
         fiado_record_para_deletar_stmt = None
@@ -262,7 +270,7 @@ async def atualizar_pagamento(db_session: AsyncSession, pagamento_id: int, dados
             comanda.valor_fiado = max(Decimal("0.00"), comanda.valor_fiado or Decimal("0.00"))
             comanda.valor_pago = max(Decimal("0.00"), comanda.valor_pago or Decimal("0.00"))
 
-            # Recalcular status usando nova lógica
+            # MODIFICAÇÃO: Recalcular status usando nova lógica onde valor_total_calculado é o saldo devedor restante
             cliente_com_saldo_atualizado = await _calcular_valores_e_status_comanda(comanda, db_session)
             db_session.add(comanda)
             if cliente_com_saldo_atualizado:
@@ -307,7 +315,8 @@ async def deletar_pagamento(db_session: AsyncSession, pagamento_id: int):
     comanda_result = await db_session.execute(comanda_query)
     comanda = comanda_result.scalars().first()
     if not comanda:
-        print(f"Aviso: Comanda ID {pagamento_db.id_comanda} associada ao Pagamento ID {pagamento_id} não encontrada ao deletar.")
+        print(
+            f"Aviso: Comanda ID {pagamento_db.id_comanda} associada ao Pagamento ID {pagamento_id} não encontrada ao deletar.")
         await db_session.delete(pagamento_db)
         await db_session.commit()
         return {"message": f"Pagamento ID {pagamento_id} deletado, mas comanda associada não encontrada."}
@@ -335,7 +344,7 @@ async def deletar_pagamento(db_session: AsyncSession, pagamento_id: int):
         comanda.valor_fiado = max(Decimal("0.00"), comanda.valor_fiado or Decimal("0.00"))
         comanda.valor_pago = max(Decimal("0.00"), comanda.valor_pago or Decimal("0.00"))
 
-        # Recalcular status usando nova lógica
+        # MODIFICAÇÃO: Recalcular status usando nova lógica onde valor_total_calculado é o saldo devedor restante
         cliente_com_saldo_atualizado = await _calcular_valores_e_status_comanda(comanda, db_session)
         db_session.add(comanda)
         if cliente_com_saldo_atualizado:
@@ -364,7 +373,7 @@ async def deletar_pagamento(db_session: AsyncSession, pagamento_id: int):
         raise HTTPException(status_code=500, detail=f"Erro inesperado ao deletar pagamento: {e}\n{error_trace}")
 
 
-# CORREÇÃO: Função de aplicar crédito atualizada para nova lógica
+# MODIFICAÇÃO: Função de aplicar crédito atualizada para nova lógica onde valor_total_calculado é o saldo devedor restante
 async def aplicar_credito_cliente_na_comanda(db_session: AsyncSession, comanda_id: int, cliente_id: int):
     """Tenta aplicar o saldo de crédito de um cliente a uma comanda."""
     comanda_query = select(Comanda).where(Comanda.id == comanda_id)
@@ -379,8 +388,8 @@ async def aplicar_credito_cliente_na_comanda(db_session: AsyncSession, comanda_i
     if not cliente:
         raise HTTPException(status_code=404, detail=f"Cliente ID {cliente_id} não encontrado.")
 
-    # CORREÇÃO: Usar saldo_devedor baseado em valor_total_calculado
-    saldo_devedor_comanda = comanda.saldo_devedor
+    # MODIFICAÇÃO: Usar saldo devedor restante (valor_total_calculado)
+    saldo_devedor_comanda = comanda.valor_total_calculado
     if saldo_devedor_comanda <= Decimal("0.00"):
         return {"message": "Comanda não possui saldo devedor.", "credito_aplicado": Decimal("0.00")}
 
@@ -405,9 +414,10 @@ async def aplicar_credito_cliente_na_comanda(db_session: AsyncSession, comanda_i
             comanda.cliente = cliente
         elif comanda.id_cliente_associado != cliente.id:
             await db_session.rollback()
-            raise HTTPException(status_code=400, detail="Erro: Tentativa de aplicar crédito de um cliente diferente do associado à comanda.")
+            raise HTTPException(status_code=400,
+                                detail="Erro: Tentativa de aplicar crédito de um cliente diferente do associado à comanda.")
 
-        # Recalcular status da comanda usando nova lógica
+        # MODIFICAÇÃO: Recalcular status da comanda usando nova lógica onde valor_total_calculado é o saldo devedor restante
         cliente_saldo_modificado = await _calcular_valores_e_status_comanda(comanda, db_session)
 
         db_session.add(comanda)
@@ -421,7 +431,7 @@ async def aplicar_credito_cliente_na_comanda(db_session: AsyncSession, comanda_i
             "credito_aplicado": credito_a_aplicar,
             "novo_saldo_cliente": cliente.saldo_credito,
             "novo_status_comanda": comanda.status_comanda,
-            "novo_saldo_devedor_comanda": comanda.saldo_devedor
+            "novo_saldo_devedor_comanda": comanda.valor_total_calculado
         }
 
     except Exception as e:
