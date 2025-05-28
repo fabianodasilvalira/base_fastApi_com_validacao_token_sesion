@@ -37,7 +37,7 @@ async def _calcular_valores_e_status_comanda(comanda: Comanda, db_session: Async
     valor_credito = comanda.valor_credito_usado or Decimal("0.00")
 
     comanda.valor_total_calculado = max(Decimal("0.00"),
-                                        valor_total_original - valor_pago - valor_fiado - valor_credito)
+                                        valor_total_original - valor_pago - valor_credito)
 
     # Valor devido real (saldo devedor restante)
     valor_devido_real = comanda.valor_total_calculado

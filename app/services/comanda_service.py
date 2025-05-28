@@ -235,8 +235,8 @@ class ComandaService:
             # Atualizar valor pago
             comanda.valor_pago = (comanda.valor_pago or Decimal(0)) + pagamento_data.valor_pago
 
-            # ✅ CORREÇÃO: Só recalcular saldo, NÃO a estrutura!
-            comanda.recalcular_saldo_devedor()
+            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=True
+            comanda.atualizar_valores_comanda(apenas_saldo=True)
 
             # Atualizar status
             if comanda.valor_total_calculado <= Decimal(0):
@@ -299,8 +299,8 @@ class ComandaService:
             comanda.valor_fiado = (comanda.valor_fiado or Decimal(0)) + valor_a_fiar
             comanda.valor_pago = (comanda.valor_pago or Decimal(0)) + valor_a_fiar
 
-            # ✅ CORREÇÃO: Só recalcular saldo, NÃO a estrutura!
-            comanda.recalcular_saldo_devedor()
+            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=True
+            comanda.atualizar_valores_comanda(apenas_saldo=True)
 
             # Atualizar status
             if comanda.valor_total_calculado <= Decimal(0):
@@ -328,9 +328,9 @@ class ComandaService:
 
     @staticmethod
     async def registrar_credito(db: AsyncSession, comanda_id: int, valor_credito: Decimal,
-                               observacoes: Optional[str] = None) -> Comanda:
+                                observacoes: Optional[str] = None) -> Comanda:
         """
-        ✅ NOVO: Registra uso de crédito na comanda
+        ✅ CORRIGIDO: Registra uso de crédito na comanda
         """
         try:
             comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
@@ -358,8 +358,8 @@ class ComandaService:
                 else:
                     comanda.observacoes = obs_credito
 
-            # ✅ CORREÇÃO: Só recalcular saldo, NÃO a estrutura!
-            comanda.recalcular_saldo_devedor()
+            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=True
+            comanda.atualizar_valores_comanda(apenas_saldo=True)
 
             # Atualizar status
             if comanda.valor_total_calculado <= Decimal(0):
@@ -383,22 +383,6 @@ class ComandaService:
             await db.rollback()
             logger.error(f"❌ Erro ao registrar crédito: {e}")
             raise ComandaValidationError(f"Erro interno: {str(e)}")
-
-    @staticmethod
-    async def obter_total_fiados_comanda(db: AsyncSession, comanda_id: int) -> Decimal:
-        """
-        ✅ NOVO: Retorna o total de fiados de uma comanda consultando a tabela Fiado
-        """
-        try:
-            result = await db.execute(
-                select(func.coalesce(func.sum(Fiado.valor_original), 0))
-                .where(Fiado.id_comanda == comanda_id)
-            )
-            total_fiados = Decimal(str(result.scalar() or 0))
-            return total_fiados
-        except Exception as e:
-            logger.error(f"❌ Erro ao consultar fiados da comanda {comanda_id}: {e}")
-            return Decimal("0.00")
 
     @staticmethod
     async def fechar_comanda(db: AsyncSession, comanda_id: int) -> Comanda:
@@ -487,8 +471,8 @@ class ComandaService:
                 else:
                     comanda.observacoes = observacao_desconto
 
-            # ✅ CORREÇÃO: Recalcular estrutura completa (desconto altera valor original)
-            comanda.atualizar_valores_comanda()
+            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=False (recalcular tudo)
+            comanda.atualizar_valores_comanda(apenas_saldo=False)
 
             # Atualizar status se necessário
             if comanda.valor_total_calculado <= Decimal(0) and comanda.valor_coberto > 0:
@@ -515,7 +499,7 @@ class ComandaService:
     @staticmethod
     async def adicionar_item_comanda(db: AsyncSession, comanda_id: int, item_data) -> Comanda:
         """
-        ✅ EXEMPLO: Quando adicionar itens, usar atualizar_valores_comanda()
+        ✅ CORRIGIDO: Quando adicionar itens, usar método unificado
         """
         try:
             comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
@@ -524,8 +508,8 @@ class ComandaService:
 
             # ... lógica para adicionar item ...
 
-            # ✅ CORREÇÃO: Recalcular estrutura completa (itens mudaram)
-            comanda.atualizar_valores_comanda()
+            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=False (recalcular tudo)
+            comanda.atualizar_valores_comanda(apenas_saldo=False)
 
             await db.commit()
             await db.refresh(comanda)
@@ -581,7 +565,8 @@ class ComandaService:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def recalcular_totais_comanda(db: AsyncSession, comanda_id: int, fazer_commit: bool = True) -> Optional[Comanda]:
+    async def recalcular_totais_comanda(db: AsyncSession, comanda_id: int, fazer_commit: bool = True) -> Optional[
+        Comanda]:
         """
         ✅ CORRIGIDO: Recalcula totais da comanda baseado nos itens
         """
@@ -615,6 +600,8 @@ class ComandaService:
             percentual_taxa = comanda_data.percentual_taxa_servico or Decimal("0.0")
             valor_taxa = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
             desconto = comanda_data.valor_desconto or Decimal("0.0")
+
+            # ✅ CORREÇÃO: Calcular valor total original e saldo devedor
             valor_total_original = max(Decimal("0.0"), total_itens + valor_taxa - desconto)
 
             # ✅ CORREÇÃO: Só subtrair valor_pago + valor_credito
@@ -674,7 +661,6 @@ async def force_recalculate_and_commit(db: AsyncSession, id_comanda: int) -> boo
     except Exception as e:
         logger.exception(f"💥 ERRO na FORÇA RECÁLCULO da comanda {id_comanda}: {e}")
         return False
-
 
 
 # Manter funções antigas para compatibilidade

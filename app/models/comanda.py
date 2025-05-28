@@ -58,43 +58,54 @@ class Comanda(Base):
         if not self.qr_code_comanda_hash:
             self.qr_code_comanda_hash = str(uuid.uuid4())
 
-    def recalcular_estrutura_comanda(self):
+    def atualizar_valores_comanda(self, apenas_saldo=False):
         """
-        ✅ USAR APENAS quando alterar itens, taxa ou desconto
-        Recalcula: valor_final_comanda, valor_taxa_servico
-        """
-        # Calcular total dos itens
-        total_itens = self.valor_final_comanda or Decimal("0.00")
+        ✅ MÉTODO UNIFICADO CORRIGIDO: Atualiza valores da comanda de forma segura
 
-        # Calcular taxa baseada no total dos itens
-        percentual_taxa = self.percentual_taxa_servico or Decimal("0.00")
-        self.valor_taxa_servico = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
+        Args:
+            apenas_saldo (bool): Se True, atualiza apenas o saldo devedor sem recalcular a estrutura
+                                (usar após pagamentos). Se False, recalcula estrutura e saldo
+                                (usar após alterações em itens, taxa ou desconto).
+        """
+        # Preservar valores originais para debug
+        valor_total_antes = self.valor_total_calculado
 
-    def recalcular_saldo_devedor(self):
-        """
-        ✅ CORREÇÃO PRINCIPAL: Só subtrai valor_pago + valor_credito
-        valor_fiado é SÓ para controle, NÃO subtrai!
-        """
-        # Usar valores já calculados (NÃO recalcular estrutura!)
+        # PARTE 1: Recalcular estrutura (apenas se não for só atualização de saldo)
+        if not apenas_saldo:
+            # Calcular taxa baseada no total dos itens
+            total_itens = self.valor_final_comanda or Decimal("0.00")
+            percentual_taxa = self.percentual_taxa_servico or Decimal("0.00")
+            self.valor_taxa_servico = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
+
+        # PARTE 2: Sempre recalcular o saldo devedor corretamente
+        # Usar valores já calculados para o total original
         total_itens = self.valor_final_comanda or Decimal("0.00")
         taxa = self.valor_taxa_servico or Decimal("0.00")
         desconto = self.valor_desconto or Decimal("0.00")
         valor_total_original = max(Decimal("0.00"), total_itens + taxa - desconto)
 
-        # ✅ CORREÇÃO: NÃO subtrair valor_fiado (já está no valor_pago)
-        valor_pago = self.valor_pago or Decimal("0.00")  # Inclui fiados
+        # Calcular valor coberto (pago + crédito)
+        valor_pago = self.valor_pago or Decimal("0.00")  # Já inclui fiados
         valor_credito = self.valor_credito_usado or Decimal("0.00")
 
-        # SÓ subtrai pago + crédito (fiado já está no pago)
+        # Calcular saldo devedor final
         self.valor_total_calculado = max(Decimal("0.00"), valor_total_original - valor_pago - valor_credito)
 
-    def atualizar_valores_comanda(self):
+        # Log para debug (remover em produção)
+        # print(f"Atualização: apenas_saldo={apenas_saldo}, antes={valor_total_antes}, depois={self.valor_total_calculado}")
+
+    # Métodos legados mantidos para compatibilidade, mas redirecionando para o método unificado
+    def recalcular_estrutura_comanda(self):
         """
-        ✅ MÉTODO COMPLETO: Recalcula estrutura E saldo
-        Usar apenas quando necessário recalcular tudo (itens/taxa/desconto alterados)
+        ✅ LEGADO: Usar atualizar_valores_comanda(apenas_saldo=False) em vez disso
         """
-        self.recalcular_estrutura_comanda()
-        self.recalcular_saldo_devedor()
+        self.atualizar_valores_comanda(apenas_saldo=False)
+
+    def recalcular_saldo_devedor(self):
+        """
+        ✅ LEGADO: Usar atualizar_valores_comanda(apenas_saldo=True) em vez disso
+        """
+        self.atualizar_valores_comanda(apenas_saldo=True)
 
     @property
     def valor_total_original(self) -> Decimal:
