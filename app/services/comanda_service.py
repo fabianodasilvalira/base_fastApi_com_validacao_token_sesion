@@ -202,7 +202,8 @@ class ComandaService:
 
     @staticmethod
     async def registrar_pagamento(db: AsyncSession, comanda_id: int, pagamento_data: PagamentoCreateSchema) -> Comanda:
-        """✅ CORRIGIDO: Registra um pagamento na comanda"""
+        """✅ CORRIGIDO: Registra um pagamento na comanda com suporte a saldo_credito"""
+
         try:
             comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
             if not comanda:
@@ -235,8 +236,47 @@ class ComandaService:
             # Atualizar valor pago
             comanda.valor_pago = (comanda.valor_pago or Decimal(0)) + pagamento_data.valor_pago
 
-            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=True
+            # Recalcular saldo devedor
             comanda.atualizar_valores_comanda(apenas_saldo=True)
+
+            # Verificar se há pagamento excedente e cliente para creditar
+            cliente = None
+            if comanda.valor_total_calculado < Decimal(0) and comanda.id_cliente_associado:
+                # Buscar cliente diretamente do banco para garantir que está na sessão atual
+                cliente_id = comanda.id_cliente_associado
+                result = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+                cliente = result.scalar_one_or_none()
+
+                if cliente:
+                    # Valor negativo indica pagamento excedente
+                    valor_excedente = abs(comanda.valor_total_calculado)
+
+                    # Ajustar o valor total calculado para zero
+                    comanda.valor_total_calculado = Decimal(0)
+
+                    # Adicionar o excedente ao saldo de crédito do cliente
+                    cliente.saldo_credito = (cliente.saldo_credito or Decimal(0)) + valor_excedente
+
+                    # Registrar nas observações
+                    obs_credito = f"Crédito adicionado: R$ {valor_excedente} (pagamento excedente)"
+                    if comanda.observacoes:
+                        comanda.observacoes += f"\n{obs_credito}"
+                    else:
+                        comanda.observacoes = obs_credito
+
+                    # Garantir que o cliente seja marcado como modificado
+                    await db.execute(
+                        update(Cliente)
+                        .where(Cliente.id == cliente_id)
+                        .values(saldo_credito=cliente.saldo_credito)
+                    )
+
+                    logger.info(f"💰 Crédito adicionado ao cliente {cliente.id}: R$ {valor_excedente}")
+                else:
+                    logger.warning(
+                        f"⚠️ Cliente ID {comanda.id_cliente_associado} não encontrado para creditar excedente")
+                    # Ajustar o valor total calculado para zero mesmo sem cliente
+                    comanda.valor_total_calculado = Decimal(0)
 
             # Atualizar status
             if comanda.valor_total_calculado <= Decimal(0):
@@ -246,8 +286,14 @@ class ComandaService:
                 comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
                 logger.info(f"🔄 Comanda {comanda_id} PAGA PARCIALMENTE")
 
+            # Commit para salvar todas as alterações
             await db.commit()
+
+            # Refresh para garantir que os dados estão atualizados
             await db.refresh(comanda)
+            if cliente:
+                await db.refresh(cliente)
+                logger.info(f"✅ Saldo de crédito do cliente {cliente.id} atualizado: R$ {cliente.saldo_credito}")
 
             logger.info(f"✅ Pagamento registrado: Comanda {comanda_id}, "
                         f"Valor {pagamento_data.valor_pago}, "
@@ -261,6 +307,113 @@ class ComandaService:
             await db.rollback()
             logger.error(f"❌ Erro ao registrar pagamento na comanda {comanda_id}: {e}")
             raise ComandaValidationError(f"Erro interno ao registrar pagamento: {str(e)}")
+
+    @staticmethod
+    async def usar_credito_cliente(db: AsyncSession, comanda_id: int,
+                                   valor_credito: Optional[Decimal] = None) -> Comanda:
+        """
+        ✅ CORRIGIDO: Usa o saldo de crédito do cliente para pagar a comanda
+
+        Args:
+            comanda_id: ID da comanda
+            valor_credito: Valor específico de crédito a usar. Se None, usa todo o saldo disponível até o valor da comanda
+
+        Returns:
+            Comanda atualizada
+        """
+        try:
+            comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
+            if not comanda:
+                raise ComandaValidationError(f"Comanda {comanda_id} não encontrada")
+
+            # Validar status da comanda
+            if comanda.status_comanda in [StatusComanda.PAGA_TOTALMENTE, StatusComanda.CANCELADA,
+                                          StatusComanda.FECHADA]:
+                raise ComandaValidationError(f"Comanda já está {comanda.status_comanda.value}")
+
+            # Verificar se há cliente associado
+            if not comanda.id_cliente_associado:
+                raise ComandaValidationError("Comanda não possui cliente associado para usar crédito")
+
+            # Buscar cliente diretamente do banco para garantir que está na sessão atual
+            cliente_id = comanda.id_cliente_associado
+            result = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+            cliente = result.scalar_one_or_none()
+
+            if not cliente:
+                raise ComandaValidationError(f"Cliente ID {comanda.id_cliente_associado} não encontrado")
+
+            # Verificar se cliente tem saldo de crédito
+            if not cliente.saldo_credito or cliente.saldo_credito <= 0:
+                raise ComandaValidationError(f"Cliente não possui saldo de crédito disponível")
+
+            # Determinar valor a ser usado
+            saldo_devedor = comanda.valor_total_calculado
+            saldo_credito_cliente = cliente.saldo_credito
+
+            if valor_credito is None:
+                # Usar todo o saldo disponível até o valor da comanda
+                valor_a_usar = min(saldo_devedor, saldo_credito_cliente)
+            else:
+                # Usar valor específico
+                if valor_credito <= 0:
+                    raise ComandaValidationError("Valor de crédito a usar deve ser maior que zero")
+                if valor_credito > saldo_credito_cliente:
+                    raise ComandaValidationError(
+                        f"Valor solicitado (R$ {valor_credito}) excede o saldo de crédito disponível (R$ {saldo_credito_cliente})")
+                valor_a_usar = min(valor_credito, saldo_devedor)
+
+            logger.info(f"💳 Usando crédito do cliente {cliente.id} - Comanda {comanda_id}: Valor: {valor_a_usar}")
+
+            # Atualizar saldo de crédito do cliente
+            cliente.saldo_credito -= valor_a_usar
+
+            # Garantir que o cliente seja marcado como modificado
+            await db.execute(
+                update(Cliente)
+                .where(Cliente.id == cliente_id)
+                .values(saldo_credito=cliente.saldo_credito)
+            )
+
+            # Atualizar valor de crédito usado na comanda
+            comanda.valor_credito_usado = (comanda.valor_credito_usado or Decimal(0)) + valor_a_usar
+
+            # Adicionar observação
+            obs_credito = f"Crédito usado: R$ {valor_a_usar} do saldo do cliente"
+            if comanda.observacoes:
+                comanda.observacoes += f"\n{obs_credito}"
+            else:
+                comanda.observacoes = obs_credito
+
+            # Recalcular saldo devedor
+            comanda.atualizar_valores_comanda(apenas_saldo=True)
+
+            # Atualizar status
+            if comanda.valor_total_calculado <= Decimal(0):
+                comanda.status_comanda = StatusComanda.PAGA_TOTALMENTE
+            else:
+                comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
+
+            # Commit para salvar todas as alterações
+            await db.commit()
+
+            # Refresh para garantir que os dados estão atualizados
+            await db.refresh(comanda)
+            await db.refresh(cliente)
+
+            logger.info(f"✅ Crédito do cliente usado: Comanda {comanda_id}, "
+                        f"Valor: {valor_a_usar}, "
+                        f"Saldo de crédito restante: {cliente.saldo_credito}, "
+                        f"Saldo comanda: {comanda.valor_total_calculado}")
+
+            return comanda
+
+        except ComandaValidationError:
+            raise
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"❌ Erro ao usar crédito do cliente: {e}")
+            raise ComandaValidationError(f"Erro interno: {str(e)}")
 
     @staticmethod
     async def registrar_fiado(db: AsyncSession, comanda_id: int, fiado_data: FiadoCreate) -> Comanda:
@@ -521,6 +674,67 @@ class ComandaService:
             logger.error(f"❌ Erro ao adicionar item: {e}")
             raise ComandaValidationError(f"Erro interno: {str(e)}")
 
+    @staticmethod
+    async def adicionar_credito_cliente(db: AsyncSession, cliente_id: int, valor_credito: Decimal,
+                                        observacoes: Optional[str] = None) -> Cliente:
+        """
+        ✅ CORRIGIDO: Adiciona crédito diretamente ao saldo do cliente
+
+        Args:
+            cliente_id: ID do cliente
+            valor_credito: Valor do crédito a adicionar
+            observacoes: Observações sobre o crédito
+
+        Returns:
+            Cliente atualizado
+        """
+        try:
+            if valor_credito <= 0:
+                raise ComandaValidationError("Valor do crédito deve ser maior que zero")
+
+            # Buscar cliente diretamente do banco para garantir que está na sessão atual
+            result = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+            cliente = result.scalar_one_or_none()
+
+            if not cliente:
+                raise ComandaValidationError(f"Cliente com ID {cliente_id} não encontrado")
+
+            logger.info(f"💰 Adicionando crédito ao cliente {cliente_id}: Valor: {valor_credito}")
+
+            # Atualizar saldo de crédito
+            cliente.saldo_credito = (cliente.saldo_credito or Decimal(0)) + valor_credito
+
+            # Garantir que o cliente seja marcado como modificado
+            await db.execute(
+                update(Cliente)
+                .where(Cliente.id == cliente_id)
+                .values(saldo_credito=cliente.saldo_credito)
+            )
+
+            # Adicionar observação se fornecida
+            if observacoes:
+                # Aqui você pode adicionar a observação em algum histórico de transações, se existir
+                pass
+
+            # Commit para salvar todas as alterações
+            await db.commit()
+
+            # Refresh para garantir que os dados estão atualizados
+            await db.refresh(cliente)
+
+            logger.info(f"✅ Crédito adicionado: Cliente {cliente_id}, "
+                        f"Valor: {valor_credito}, "
+                        f"Novo saldo: {cliente.saldo_credito}")
+
+            return cliente
+
+        except ComandaValidationError:
+            raise
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"❌ Erro ao adicionar crédito ao cliente {cliente_id}: {e}")
+            raise ComandaValidationError(f"Erro interno: {str(e)}")
+
     # Métodos auxiliares privados
     @staticmethod
     async def _buscar_cliente(db: AsyncSession, cliente_id: int) -> Optional[Cliente]:
@@ -711,3 +925,14 @@ async def buscar_mesa(db: AsyncSession, mesa_id: int):
 
 async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_commit: bool = True) -> Optional[Comanda]:
     return await ComandaService.recalcular_totais_comanda(db, id_comanda, fazer_commit)
+
+
+# Novas funções para compatibilidade
+async def usar_credito_cliente_na_comanda(db: AsyncSession, comanda_id: int,
+                                          valor_credito: Optional[Decimal] = None) -> Comanda:
+    return await ComandaService.usar_credito_cliente(db, comanda_id, valor_credito)
+
+
+async def adicionar_credito_ao_cliente(db: AsyncSession, cliente_id: int, valor_credito: Decimal,
+                                       observacoes: Optional[str] = None) -> Cliente:
+    return await ComandaService.adicionar_credito_cliente(db, cliente_id, valor_credito, observacoes)
