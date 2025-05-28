@@ -1,8 +1,8 @@
-"""Create initial tables
+"""Criação inicial
 
-Revision ID: e816a0bf3b3e
+Revision ID: c6c60ff0f67e
 Revises: 
-Create Date: 2025-05-27 08:17:44.314550
+Create Date: 2025-05-27 19:25:49.075724
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e816a0bf3b3e'
+revision: str = 'c6c60ff0f67e'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -108,8 +108,10 @@ def upgrade() -> None:
     sa.Column('percentual_taxa_servico', sa.Numeric(precision=5, scale=2), nullable=False),
     sa.Column('valor_taxa_servico', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('valor_desconto', sa.Numeric(precision=10, scale=2), nullable=False),
+    sa.Column('valor_final_comanda', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('valor_pago', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('valor_fiado', sa.Numeric(precision=10, scale=2), nullable=False),
+    sa.Column('valor_credito_usado', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('motivo_cancelamento', sa.Text(), nullable=True),
     sa.Column('observacoes', sa.Text(), nullable=True),
     sa.Column('qr_code_comanda_hash', sa.String(), nullable=True),

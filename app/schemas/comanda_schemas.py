@@ -1,34 +1,9 @@
-# app/schemas/comanda_schemas_sugestao.py
-from pydantic import BaseModel, condecimal, validator
+from pydantic import BaseModel, condecimal, validator, Field
 from typing import Optional, List
 from enum import Enum
 from datetime import datetime
-from decimal import Decimal # Importar Decimal
+from decimal import Decimal
 
-# Importar schemas relacionados (ajuste os caminhos conforme necessário)
-# from app.schemas.item_pedido_schemas import ItemPedidoInResponse
-# from app.schemas.pagamento_schemas import PagamentoResponseSchema
-
-# Placeholder para schemas importados para o exemplo funcionar
-class ItemPedidoInResponse(BaseModel):
-    id: int
-    nome_item: str
-    quantidade: int
-    valor_unitario: Decimal
-    valor_total: Decimal
-
-class PagamentoResponseSchema(BaseModel):
-    id: int
-    valor_pago: Decimal
-    metodo_pagamento: str
-    data_pagamento: datetime
-
-class FiadoBase(BaseModel):
-    id: int
-    valor_original: Decimal
-    valor_devido: Decimal
-    data_registro: datetime
-    data_vencimento: Optional[datetime] = None
 
 class StatusComanda(str, Enum):
     ABERTA = "Aberta"
@@ -38,26 +13,104 @@ class StatusComanda(str, Enum):
     CANCELADA = "Cancelada"
     EM_FIADO = "Em Fiado"
 
-class ComandaBaseComanda(BaseModel):
+
+# Schemas para relacionamentos (placeholders - ajuste conforme seus schemas reais)
+class ItemPedidoInResponse(BaseModel):
     id: int
-    status_comanda: str
-    qr_code_comanda_hash: str
+    nome_item: str
+    quantidade: int
+    valor_unitario: Decimal
+    valor_total: Decimal
+
+    class Config:
+        from_attributes = True
+
+
+class PagamentoResponseSchema(BaseModel):
+    id: int
+    valor_pago: Decimal
+    metodo_pagamento: str
+    data_pagamento: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FiadoBase(BaseModel):
+    id: int
+    valor_original: Decimal
+    valor_devido: Decimal
+    data_registro: datetime
+    data_vencimento: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class MesaBase(BaseModel):
+    id: int
+    numero: str
+    capacidade: int
+
+    class Config:
+        from_attributes = True
+
+
+class ClienteBase(BaseModel):
+    id: int
+    nome: str
+    telefone: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 
 class ComandaCreate(BaseModel):
-    id_mesa: int
-    id_cliente_associado: Optional[int] = None
-    status_comanda: StatusComanda = StatusComanda.ABERTA
-    # Mantém valor_total_calculado para a soma dos itens
-    valor_total_calculado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
-    percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2) = Decimal("10.00")
-    valor_taxa_servico: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
-    valor_desconto: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00") # Adicionado desconto
-    # Adicionado valor_final_comanda
-    valor_final_comanda: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
-    valor_pago: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
-    valor_fiado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
-    observacoes: Optional[str] = None
-    qr_code_comanda_hash: Optional[str] = None
+    id_mesa: int = Field(..., description="ID da mesa (obrigatório)")
+    id_cliente_associado: Optional[int] = Field(None, description="ID do cliente (opcional)")
+    status_comanda: StatusComanda = Field(StatusComanda.ABERTA, description="Status inicial da comanda")
+
+    # Valores monetários
+    valor_total_calculado: condecimal(max_digits=10, decimal_places=2) = Field(
+        Decimal("0.00"), description="Saldo devedor restante"
+    )
+    percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2) = Field(
+        Decimal("10.00"), description="Percentual da taxa de serviço"
+    )
+    valor_taxa_servico: condecimal(max_digits=10, decimal_places=2) = Field(
+        Decimal("0.00"), description="Valor calculado da taxa de serviço"
+    )
+    valor_desconto: condecimal(max_digits=10, decimal_places=2) = Field(
+        Decimal("0.00"), description="Valor do desconto aplicado"
+    )
+    valor_final_comanda: condecimal(max_digits=10, decimal_places=2) = Field(
+        Decimal("0.00"), description="Total dos itens (sem taxa, sem desconto)"
+    )
+    valor_pago: condecimal(max_digits=10, decimal_places=2) = Field(
+        Decimal("0.00"), description="Valor já pago"
+    )
+    valor_fiado: condecimal(max_digits=10, decimal_places=2) = Field(
+        Decimal("0.00"), description="Valor registrado como fiado"
+    )
+    valor_credito_usado: condecimal(max_digits=10, decimal_places=2) = Field(
+        Decimal("0.00"), description="Valor de crédito utilizado"
+    )
+
+    # Campos opcionais
+    observacoes: Optional[str] = Field(None, description="Observações da comanda")
+    qr_code_comanda_hash: Optional[str] = Field(None, description="Hash do QR Code")
+
+    @validator("id_mesa")
+    def validar_id_mesa(cls, v):
+        if v <= 0:
+            raise ValueError("ID da mesa deve ser maior que zero")
+        return v
+
+    @validator("id_cliente_associado")
+    def validar_id_cliente(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError("ID do cliente deve ser maior que zero")
+        return v
 
     @validator("qr_code_comanda_hash", pre=True, always=True)
     def validar_qr_code(cls, v):
@@ -65,48 +118,130 @@ class ComandaCreate(BaseModel):
             return None
         return v
 
+    @validator("percentual_taxa_servico")
+    def validar_percentual_taxa(cls, v):
+        if v < 0 or v > 100:
+            raise ValueError("Percentual da taxa de serviço deve estar entre 0 e 100")
+        return v
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id_mesa": 1,
+                "id_cliente_associado": 123,
+                "observacoes": "Mesa para 4 pessoas",
+                "percentual_taxa_servico": 10.00
+            }
+        }
+
+
 class ComandaUpdate(BaseModel):
     id_mesa: Optional[int] = None
     id_cliente_associado: Optional[int] = None
     status_comanda: Optional[StatusComanda] = None
-    # Mantém valor_total_calculado opcional
     valor_total_calculado: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     percentual_taxa_servico: Optional[condecimal(max_digits=5, decimal_places=2)] = None
     valor_taxa_servico: Optional[condecimal(max_digits=10, decimal_places=2)] = None
-    valor_desconto: Optional[condecimal(max_digits=10, decimal_places=2)] = None # Adicionado desconto
-    # Adicionado valor_final_comanda opcional
+    valor_desconto: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     valor_final_comanda: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     valor_pago: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     valor_fiado: Optional[condecimal(max_digits=10, decimal_places=2)] = None
+    valor_credito_usado: Optional[condecimal(max_digits=10, decimal_places=2)] = None
     observacoes: Optional[str] = None
-    # qr_code_comanda_hash não deve ser atualizável geralmente
+
+    @validator("percentual_taxa_servico")
+    def validar_percentual_taxa(cls, v):
+        if v is not None and (v < 0 or v > 100):
+            raise ValueError("Percentual da taxa de serviço deve estar entre 0 e 100")
+        return v
+
 
 class ComandaInResponse(BaseModel):
     id: int
     id_mesa: int
     id_cliente_associado: Optional[int] = None
     status_comanda: StatusComanda
-    # Mantém valor_total_calculado
+
+    # Valores monetários
     valor_total_calculado: condecimal(max_digits=10, decimal_places=2)
     percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2)
     valor_taxa_servico: condecimal(max_digits=10, decimal_places=2)
-    valor_desconto: condecimal(max_digits=10, decimal_places=2) # Adicionado desconto
-    # Adicionado valor_final_comanda
+    valor_desconto: condecimal(max_digits=10, decimal_places=2)
     valor_final_comanda: condecimal(max_digits=10, decimal_places=2)
     valor_pago: condecimal(max_digits=10, decimal_places=2)
     valor_fiado: condecimal(max_digits=10, decimal_places=2)
+    valor_credito_usado: condecimal(max_digits=10, decimal_places=2)
+
+    # Campos opcionais
     observacoes: Optional[str] = None
     qr_code_comanda_hash: Optional[str] = None
+
+    # Timestamps
     created_at: datetime
     updated_at: datetime
-    # Campos opcionais para relacionamentos
+
+    # Relacionamentos opcionais
+    mesa: Optional[MesaBase] = None
+    cliente: Optional[ClienteBase] = None
     itens_pedido: Optional[List[ItemPedidoInResponse]] = None
     pagamentos: Optional[List[PagamentoResponseSchema]] = None
     fiados_registrados: Optional[List[FiadoBase]] = None
 
     class Config:
         from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "id_mesa": 5,
+                "id_cliente_associado": 123,
+                "status_comanda": "Aberta",
+                "valor_total_calculado": 85.50,
+                "percentual_taxa_servico": 10.00,
+                "valor_taxa_servico": 8.55,
+                "valor_desconto": 0.00,
+                "valor_final_comanda": 85.50,
+                "valor_pago": 0.00,
+                "valor_fiado": 0.00,
+                "valor_credito_usado": 0.00,
+                "observacoes": "Mesa para 4 pessoas",
+                "qr_code_comanda_hash": "abc123-def456",
+                "created_at": "2024-01-15T10:30:00",
+                "updated_at": "2024-01-15T10:30:00"
+            }
+        }
+
 
 class QRCodeHashResponse(BaseModel):
     qr_code_comanda_hash: str
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "qr_code_comanda_hash": "abc123-def456-ghi789"
+            }
+        }
+
+
+class ComandaStatusUpdate(BaseModel):
+    """Schema específico para atualização de status"""
+    status_comanda: StatusComanda
+    motivo_cancelamento: Optional[str] = None
+
+    @validator("motivo_cancelamento")
+    def validar_motivo_cancelamento(cls, v, values):
+        if values.get("status_comanda") == StatusComanda.CANCELADA and not v:
+            raise ValueError("Motivo do cancelamento é obrigatório quando status é 'Cancelada'")
+        return v
+
+
+class ComandaResumo(BaseModel):
+    """Schema para resumo da comanda (listagens)"""
+    id: int
+    id_mesa: int
+    status_comanda: StatusComanda
+    valor_total_calculado: condecimal(max_digits=10, decimal_places=2)
+    valor_pago: condecimal(max_digits=10, decimal_places=2)
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
