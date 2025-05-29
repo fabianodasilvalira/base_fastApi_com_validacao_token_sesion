@@ -131,26 +131,55 @@ class ComandaService:
 
     @staticmethod
     async def buscar_comanda_por_id(db: AsyncSession, comanda_id: int) -> Optional[Comanda]:
-        """Busca uma comanda pelo ID com relacionamentos básicos"""
+        """Busca uma comanda pelo ID com todos os relacionamentos necessários
+
+        Args:
+            db: Sessão assíncrona do banco de dados
+            comanda_id: ID da comanda a ser buscada
+
+        Returns:
+            Objeto Comanda com relacionamentos ou None se não encontrado
+        """
         try:
-            result = await db.execute(
+            logger.debug(f"🔍 Buscando comanda {comanda_id} com relacionamentos")
+
+            # Carrega a comanda com todos os relacionamentos necessários
+            query = (
                 select(Comanda)
+                .where(Comanda.id == comanda_id)
                 .options(
+                    selectinload(Comanda.mesa),  # Adicionado se existir
+                    selectinload(Comanda.cliente),  # Adicionado se existir
                     selectinload(Comanda.itens_pedido),
                     selectinload(Comanda.pagamentos),
                     selectinload(Comanda.fiados_registrados)
                 )
-                .where(Comanda.id == comanda_id)
             )
+
+            result = await db.execute(query)
             comanda = result.scalar_one_or_none()
 
-            # ✅ CORRIGIDO: Usar função síncrona
-            if comanda:
-                sanitizar_valores_monetarios_sync(comanda)
+            if not comanda:
+                logger.warning(f"⚠️ Comanda {comanda_id} não encontrada")
+                return None
 
+            # Garante que valores monetários tenham defaults adequados
+            comanda.valor_total_calculado = comanda.valor_total_calculado or Decimal('0.00')
+            comanda.valor_taxa_servico = comanda.valor_taxa_servico or Decimal('0.00')
+            # ... outros campos monetários
+
+            logger.debug(f"✅ Comanda {comanda_id} carregada com sucesso")
             return comanda
+
+        except MultipleResultsFound:
+            logger.error(f"❌ Múltiplas comandas encontradas para o ID {comanda_id}")
+            return None
+        except SQLAlchemyError as e:
+            logger.error(f"❌ Erro de banco de dados ao buscar comanda {comanda_id}: {str(e)}")
+            await db.rollback()
+            return None
         except Exception as e:
-            logger.error(f"❌ Erro ao buscar comanda {comanda_id}: {e}")
+            logger.error(f"❌ Erro inesperado ao buscar comanda {comanda_id}: {str(e)}", exc_info=True)
             return None
 
     @staticmethod
