@@ -5,7 +5,7 @@ from fastapi import HTTPException
 import traceback
 from decimal import Decimal
 
-from sqlalchemy.orm import relationship, joinedload
+from sqlalchemy.orm import relationship, joinedload, selectinload
 
 from app.models.pagamento import Pagamento, MetodoPagamento
 from app.models import Cliente, User, Pedido, Venda
@@ -396,7 +396,7 @@ async def deletar_pagamento(db_session: AsyncSession, pagamento_id: int):
         raise HTTPException(status_code=404, detail=f"Pagamento ID {pagamento_id} não encontrado.")
 
     # Carrega a comanda e o cliente associado (se houver)
-    comanda_query = select(Comanda).options(relationship(Comanda.cliente)).where(Comanda.id == pagamento_db.id_comanda)
+    comanda_query = select(Comanda).options(selectinload(Comanda.cliente)).where(Comanda.id == pagamento_db.id_comanda)
     comanda_result = await db_session.execute(comanda_query)
     comanda = comanda_result.scalars().first()
     if not comanda:

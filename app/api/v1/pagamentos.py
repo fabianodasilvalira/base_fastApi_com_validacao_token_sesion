@@ -6,7 +6,7 @@ from app.core.session import get_db
 from app.schemas.pagamento_schemas import (
     PagamentoResponseSchema,
     PagamentoCreateSchema,
-    PagamentoUpdateSchema
+    PagamentoUpdateSchema, MessageSchema
 )
 from app.services.pagamento_service import (
     listar_pagamentos,
@@ -54,22 +54,22 @@ async def create(pagamento: PagamentoCreateSchema, db_session: AsyncSession = De
     """
     return await criar_pagamento(db_session, pagamento)
 
-@router.put("/{pagamento_id}", response_model=PagamentoResponseSchema)
-async def update(pagamento_id: int, dados: PagamentoUpdateSchema, db_session: AsyncSession = Depends(get_db)):
-    """
-    Atualiza os dados de um pagamento existente.
+# @router.put("/{pagamento_id}", response_model=PagamentoResponseSchema)
+# async def update(pagamento_id: int, dados: PagamentoUpdateSchema, db_session: AsyncSession = Depends(get_db)):
+#     """
+#     Atualiza os dados de um pagamento existente.
+#
+#     - **pagamento_id**: ID do pagamento a ser atualizado
+#     - **dados**: Dados atualizados
+#     - **Retorno**: Pagamento atualizado
+#     - **Erro**: 404 se o pagamento não for encontrado
+#     """
+#     pagamento = await atualizar_pagamento(db_session, pagamento_id, dados)
+#     if not pagamento:
+#         raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+#     return pagamento
 
-    - **pagamento_id**: ID do pagamento a ser atualizado
-    - **dados**: Dados atualizados
-    - **Retorno**: Pagamento atualizado
-    - **Erro**: 404 se o pagamento não for encontrado
-    """
-    pagamento = await atualizar_pagamento(db_session, pagamento_id, dados)
-    if not pagamento:
-        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
-    return pagamento
-
-@router.delete("/{pagamento_id}", response_model=PagamentoResponseSchema)
+@router.delete("/{pagamento_id}", response_model=MessageSchema)
 async def delete(pagamento_id: int, db_session: AsyncSession = Depends(get_db)):
     """
     Remove um pagamento do sistema.
@@ -81,4 +81,4 @@ async def delete(pagamento_id: int, db_session: AsyncSession = Depends(get_db)):
     pagamento = await deletar_pagamento(db_session, pagamento_id)
     if not pagamento:
         raise HTTPException(status_code=404, detail="Pagamento não encontrado")
-    return pagamento
+    return {"message": f"Pagamento ID {pagamento_id} deletado com sucesso e valores da comanda atualizados."}

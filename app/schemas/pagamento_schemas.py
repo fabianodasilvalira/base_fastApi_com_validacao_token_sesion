@@ -21,6 +21,10 @@ class StatusPagamento(str, Enum):
     CANCELADO = "Cancelado"
 
 
+class MessageSchema(BaseModel):
+    message: str
+
+
 class PagamentoCreateSchema(BaseModel):
     id_comanda: int
     id_cliente: Optional[int] = None

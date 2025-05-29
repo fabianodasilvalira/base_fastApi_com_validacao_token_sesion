@@ -112,16 +112,6 @@ class PedidoService:
             try:
                 logger.info(f"🔄 Iniciando recálculo da comanda {comanda.id}")
 
-                # Usar a função de força recálculo para garantir persistência
-                sucesso_recalculo = await comanda_service.force_recalculate_and_commit(db, comanda.id)
-
-                if sucesso_recalculo:
-                    logger.info(f"✅ Comanda {comanda.id} recalculada com sucesso")
-                else:
-                    logger.error(f"❌ Falha no recálculo da comanda {comanda.id}")
-                    # Tentar recálculo alternativo
-                    await comanda_service.recalculate_comanda_totals(db, comanda.id, fazer_commit=True)
-
             except Exception as e:
                 logger.error(f"💥 ERRO no recálculo da comanda {comanda.id}: {e}")
                 # Não falha o pedido, mas tenta recálculo simples

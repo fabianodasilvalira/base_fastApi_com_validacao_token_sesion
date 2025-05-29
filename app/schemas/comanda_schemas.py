@@ -14,13 +14,17 @@ class StatusComanda(str, Enum):
     EM_FIADO = "Em Fiado"
 
 
-# Schemas para relacionamentos (placeholders - ajuste conforme seus schemas reais)
+# ✅ CORRIGIDO: Schemas para relacionamentos com todos os campos obrigatórios
 class ItemPedidoInResponse(BaseModel):
     id: int
     nome_item: str
     quantidade: int
     valor_unitario: Decimal
     valor_total: Decimal
+    # Campos adicionais que podem existir no modelo
+    id_comanda: Optional[int] = None
+    id_produto: Optional[int] = None
+    observacoes: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -30,7 +34,11 @@ class PagamentoResponseSchema(BaseModel):
     id: int
     valor_pago: Decimal
     metodo_pagamento: str
-    data_pagamento: datetime
+    data_pagamento: datetime  # ✅ CORRIGIDO: Usar data_pagamento em vez de created_at
+    # Campos adicionais
+    id_comanda: Optional[int] = None
+    id_cliente: Optional[int] = None
+    observacoes: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -42,6 +50,10 @@ class FiadoBase(BaseModel):
     valor_devido: Decimal
     data_registro: datetime
     data_vencimento: Optional[datetime] = None
+    # Campos adicionais
+    id_comanda: Optional[int] = None
+    id_cliente: Optional[int] = None
+    observacoes: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -49,8 +61,11 @@ class FiadoBase(BaseModel):
 
 class MesaBase(BaseModel):
     id: int
-    numero: str
-    capacidade: int
+    numero_identificador: str  # ✅ CORRIGIDO: Campo correto da mesa
+    status: str  # ✅ ADICIONADO: Status da mesa
+    # Campos opcionais
+    capacidade: Optional[int] = None
+    descricao: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -59,7 +74,10 @@ class MesaBase(BaseModel):
 class ClienteBase(BaseModel):
     id: int
     nome: str
+    imagem_url: Optional[str] = None  # ✅ ADICIONADO: URL da imagem
+    saldo_credito: Optional[Decimal] = None  # ✅ ADICIONADO: Saldo de crédito
     telefone: Optional[str] = None
+
 
     class Config:
         from_attributes = True
@@ -70,29 +88,29 @@ class ComandaCreate(BaseModel):
     id_cliente_associado: Optional[int] = Field(None, description="ID do cliente (opcional)")
     status_comanda: StatusComanda = Field(StatusComanda.ABERTA, description="Status inicial da comanda")
 
-    # Valores monetários
-    valor_total_calculado: condecimal(max_digits=10, decimal_places=2) = Field(
+    # ✅ CORRIGIDO: Valores monetários com defaults seguros
+    valor_total_calculado: Optional[condecimal(max_digits=10, decimal_places=2)] = Field(
         Decimal("0.00"), description="Saldo devedor restante"
     )
-    percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2) = Field(
+    percentual_taxa_servico: Optional[condecimal(max_digits=5, decimal_places=2)] = Field(
         Decimal("10.00"), description="Percentual da taxa de serviço"
     )
-    valor_taxa_servico: condecimal(max_digits=10, decimal_places=2) = Field(
+    valor_taxa_servico: Optional[condecimal(max_digits=10, decimal_places=2)] = Field(
         Decimal("0.00"), description="Valor calculado da taxa de serviço"
     )
-    valor_desconto: condecimal(max_digits=10, decimal_places=2) = Field(
+    valor_desconto: Optional[condecimal(max_digits=10, decimal_places=2)] = Field(
         Decimal("0.00"), description="Valor do desconto aplicado"
     )
-    valor_final_comanda: condecimal(max_digits=10, decimal_places=2) = Field(
+    valor_final_comanda: Optional[condecimal(max_digits=10, decimal_places=2)] = Field(
         Decimal("0.00"), description="Total dos itens (sem taxa, sem desconto)"
     )
-    valor_pago: condecimal(max_digits=10, decimal_places=2) = Field(
+    valor_pago: Optional[condecimal(max_digits=10, decimal_places=2)] = Field(
         Decimal("0.00"), description="Valor já pago"
     )
-    valor_fiado: condecimal(max_digits=10, decimal_places=2) = Field(
+    valor_fiado: Optional[condecimal(max_digits=10, decimal_places=2)] = Field(
         Decimal("0.00"), description="Valor registrado como fiado"
     )
-    valor_credito_usado: condecimal(max_digits=10, decimal_places=2) = Field(
+    valor_credito_usado: Optional[condecimal(max_digits=10, decimal_places=2)] = Field(
         Decimal("0.00"), description="Valor de crédito utilizado"
     )
 
@@ -120,8 +138,16 @@ class ComandaCreate(BaseModel):
 
     @validator("percentual_taxa_servico")
     def validar_percentual_taxa(cls, v):
-        if v < 0 or v > 100:
+        if v is not None and (v < 0 or v > 100):
             raise ValueError("Percentual da taxa de serviço deve estar entre 0 e 100")
+        return v
+
+    # ✅ NOVO: Validator para garantir que valores None sejam convertidos para Decimal
+    @validator("valor_total_calculado", "valor_taxa_servico", "valor_desconto",
+               "valor_final_comanda", "valor_pago", "valor_fiado", "valor_credito_usado", pre=True)
+    def converter_none_para_decimal(cls, v):
+        if v is None:
+            return Decimal("0.00")
         return v
 
     class Config:
@@ -162,15 +188,15 @@ class ComandaInResponse(BaseModel):
     id_cliente_associado: Optional[int] = None
     status_comanda: StatusComanda
 
-    # Valores monetários
-    valor_total_calculado: condecimal(max_digits=10, decimal_places=2)
-    percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2)
-    valor_taxa_servico: condecimal(max_digits=10, decimal_places=2)
-    valor_desconto: condecimal(max_digits=10, decimal_places=2)
-    valor_final_comanda: condecimal(max_digits=10, decimal_places=2)
-    valor_pago: condecimal(max_digits=10, decimal_places=2)
-    valor_fiado: condecimal(max_digits=10, decimal_places=2)
-    valor_credito_usado: condecimal(max_digits=10, decimal_places=2)
+    # ✅ CORRIGIDO: Valores monetários nunca None
+    valor_total_calculado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2) = Decimal("10.00")
+    valor_taxa_servico: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_desconto: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_final_comanda: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_pago: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_fiado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_credito_usado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
 
     # Campos opcionais
     observacoes: Optional[str] = None
@@ -180,12 +206,27 @@ class ComandaInResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Relacionamentos opcionais
+    # ✅ CORRIGIDO: Relacionamentos opcionais mas com estrutura correta
     mesa: Optional[MesaBase] = None
     cliente: Optional[ClienteBase] = None
-    itens_pedido: Optional[List[ItemPedidoInResponse]] = None
-    pagamentos: Optional[List[PagamentoResponseSchema]] = None
-    fiados_registrados: Optional[List[FiadoBase]] = None
+    itens_pedido: Optional[List[ItemPedidoInResponse]] = []
+    pagamentos: Optional[List[PagamentoResponseSchema]] = []
+    fiados_registrados: Optional[List[FiadoBase]] = []
+
+    # ✅ NOVO: Validator para garantir que valores None sejam convertidos
+    @validator("valor_total_calculado", "percentual_taxa_servico", "valor_taxa_servico",
+               "valor_desconto", "valor_final_comanda", "valor_pago", "valor_fiado",
+               "valor_credito_usado", pre=True)
+    def converter_none_para_decimal(cls, v):
+        if v is None:
+            return Decimal("0.00")
+        return v
+
+    @validator("itens_pedido", "pagamentos", "fiados_registrados", pre=True)
+    def converter_none_para_lista(cls, v):
+        if v is None:
+            return []
+        return v
 
     class Config:
         from_attributes = True
@@ -239,9 +280,65 @@ class ComandaResumo(BaseModel):
     id: int
     id_mesa: int
     status_comanda: StatusComanda
-    valor_total_calculado: condecimal(max_digits=10, decimal_places=2)
-    valor_pago: condecimal(max_digits=10, decimal_places=2)
+    valor_total_calculado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_pago: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
     created_at: datetime
+
+    @validator("valor_total_calculado", "valor_pago", pre=True)
+    def converter_none_para_decimal(cls, v):
+        if v is None:
+            return Decimal("0.00")
+        return v
+
+    class Config:
+        from_attributes = True
+
+
+class ComandaCreateResponse(BaseModel):
+    """Schema específico para resposta de criação de comanda com relacionamentos"""
+    id: int
+    id_mesa: int
+    id_cliente_associado: Optional[int] = None
+    status_comanda: StatusComanda
+
+    # Valores monetários
+    valor_total_calculado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    percentual_taxa_servico: condecimal(max_digits=5, decimal_places=2) = Decimal("10.00")
+    valor_taxa_servico: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_desconto: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_final_comanda: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_pago: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_fiado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+    valor_credito_usado: condecimal(max_digits=10, decimal_places=2) = Decimal("0.00")
+
+    # Campos opcionais
+    observacoes: Optional[str] = None
+    qr_code_comanda_hash: Optional[str] = None
+
+    # Timestamps
+    created_at: datetime
+    updated_at: datetime
+
+    # ✅ RELACIONAMENTOS SEMPRE PRESENTES (não opcionais)
+    mesa: MesaBase
+    cliente: Optional[ClienteBase] = None
+    itens_pedido: List[ItemPedidoInResponse] = []
+    pagamentos: List[PagamentoResponseSchema] = []
+    fiados_registrados: List[FiadoBase] = []
+
+    @validator("valor_total_calculado", "percentual_taxa_servico", "valor_taxa_servico",
+               "valor_desconto", "valor_final_comanda", "valor_pago", "valor_fiado",
+               "valor_credito_usado", pre=True)
+    def converter_none_para_decimal(cls, v):
+        if v is None:
+            return Decimal("0.00")
+        return v
+
+    @validator("itens_pedido", "pagamentos", "fiados_registrados", pre=True)
+    def converter_none_para_lista(cls, v):
+        if v is None:
+            return []
+        return v
 
     class Config:
         from_attributes = True

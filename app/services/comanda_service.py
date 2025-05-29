@@ -26,6 +26,27 @@ class ComandaValidationError(Exception):
     pass
 
 
+def sanitizar_valores_monetarios_sync(comanda: Comanda) -> None:
+    """✅ FUNÇÃO SÍNCRONA para sanitizar valores monetários"""
+    if not comanda:
+        return
+
+    campos_monetarios = [
+        'valor_total_calculado', 'percentual_taxa_servico', 'valor_taxa_servico',
+        'valor_desconto', 'valor_final_comanda', 'valor_pago', 'valor_fiado', 'valor_credito_usado'
+    ]
+
+    for campo in campos_monetarios:
+        valor = getattr(comanda, campo, None)
+        if valor is None:
+            setattr(comanda, campo, Decimal("0.00"))
+        elif not isinstance(valor, Decimal):
+            try:
+                setattr(comanda, campo, Decimal(str(valor)))
+            except (ValueError, TypeError):
+                setattr(comanda, campo, Decimal("0.00"))
+
+
 class ComandaService:
     """Service responsável por toda lógica de negócio relacionada a comandas"""
 
@@ -34,9 +55,6 @@ class ComandaService:
         """
         Valida se é possível criar uma comanda com os dados fornecidos.
         Retorna o cliente (se informado) e a mesa validados.
-
-        Raises:
-            ComandaValidationError: Se alguma validação falhar
         """
         # 1. Verificar se a mesa existe
         mesa = await ComandaService._buscar_mesa(db, comanda_data.id_mesa)
@@ -70,9 +88,7 @@ class ComandaService:
 
     @staticmethod
     async def criar_comanda(db: AsyncSession, comanda_data: ComandaCreate) -> Comanda:
-        """
-        Cria uma nova comanda após validar todas as regras de negócio.
-        """
+        """Cria uma nova comanda após validar todas as regras de negócio."""
         try:
             # Validar criação
             cliente, mesa = await ComandaService.validar_criacao_comanda(db, comanda_data)
@@ -80,14 +96,19 @@ class ComandaService:
             # Gerar QR Code se não fornecido
             qr_code = comanda_data.qr_code_comanda_hash or str(uuid.uuid4())
 
-            # Criar comanda
+            # ✅ CORRIGIDO: Garantir que todos os valores sejam Decimal
             db_comanda = Comanda(
                 id_mesa=comanda_data.id_mesa,
                 id_cliente_associado=comanda_data.id_cliente_associado,
                 status_comanda=comanda_data.status_comanda,
-                valor_total_calculado=comanda_data.valor_total_calculado or Decimal(0),
-                valor_pago=comanda_data.valor_pago or Decimal(0),
-                valor_fiado=comanda_data.valor_fiado or Decimal(0),
+                valor_total_calculado=Decimal(str(comanda_data.valor_total_calculado or "0.00")),
+                percentual_taxa_servico=Decimal(str(comanda_data.percentual_taxa_servico or "10.00")),
+                valor_taxa_servico=Decimal(str(comanda_data.valor_taxa_servico or "0.00")),
+                valor_desconto=Decimal(str(comanda_data.valor_desconto or "0.00")),
+                valor_final_comanda=Decimal(str(comanda_data.valor_final_comanda or "0.00")),
+                valor_pago=Decimal(str(comanda_data.valor_pago or "0.00")),
+                valor_fiado=Decimal(str(comanda_data.valor_fiado or "0.00")),
+                valor_credito_usado=Decimal(str(comanda_data.valor_credito_usado or "0.00")),
                 observacoes=comanda_data.observacoes,
                 qr_code_comanda_hash=qr_code
             )
@@ -98,7 +119,7 @@ class ComandaService:
 
             logger.info(f"✅ Comanda criada com sucesso: ID {db_comanda.id}, Mesa {db_comanda.id_mesa}")
 
-            # Recarregar com relacionamentos
+            # ✅ CORRIGIDO: Recarregar com relacionamentos para retornar dados completos
             return await ComandaService.buscar_comanda_completa(db, db_comanda.id)
 
         except ComandaValidationError:
@@ -121,7 +142,13 @@ class ComandaService:
                 )
                 .where(Comanda.id == comanda_id)
             )
-            return result.scalar_one_or_none()
+            comanda = result.scalar_one_or_none()
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            if comanda:
+                sanitizar_valores_monetarios_sync(comanda)
+
+            return comanda
         except Exception as e:
             logger.error(f"❌ Erro ao buscar comanda {comanda_id}: {e}")
             return None
@@ -141,7 +168,13 @@ class ComandaService:
                 )
                 .where(Comanda.id == comanda_id)
             )
-            return result.unique().scalar_one_or_none()
+            comanda = result.unique().scalar_one_or_none()
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            if comanda:
+                sanitizar_valores_monetarios_sync(comanda)
+
+            return comanda
         except Exception as e:
             logger.error(f"❌ Erro ao buscar comanda completa {comanda_id}: {e}")
             return None
@@ -163,14 +196,20 @@ class ComandaService:
                 .limit(limit)
                 .order_by(Comanda.created_at.desc())
             )
-            return result.scalars().all()
+            comandas = result.scalars().all()
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            for comanda in comandas:
+                sanitizar_valores_monetarios_sync(comanda)
+
+            return comandas
         except Exception as e:
             logger.error(f"❌ Erro ao listar comandas: {e}")
             return []
 
     @staticmethod
     async def buscar_comanda_ativa_por_mesa(db: AsyncSession, mesa_id: int) -> Optional[Comanda]:
-        """Busca comanda ativa de uma mesa específica"""
+        """✅ CORRIGIDO: Busca comanda ativa de uma mesa específica"""
         try:
             # Primeiro verificar se a mesa existe
             mesa = await ComandaService._buscar_mesa(db, mesa_id)
@@ -181,6 +220,7 @@ class ComandaService:
                 select(Comanda)
                 .options(
                     joinedload(Comanda.mesa),
+                    joinedload(Comanda.cliente),
                     selectinload(Comanda.itens_pedido),
                     selectinload(Comanda.pagamentos),
                     selectinload(Comanda.fiados_registrados)
@@ -193,7 +233,13 @@ class ComandaService:
                 )
                 .order_by(Comanda.created_at.desc())
             )
-            return result.scalar_one_or_none()
+            comanda = result.unique().scalar_one_or_none()
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            if comanda:
+                sanitizar_valores_monetarios_sync(comanda)
+
+            return comanda
         except ComandaValidationError:
             raise
         except Exception as e:
@@ -202,8 +248,7 @@ class ComandaService:
 
     @staticmethod
     async def registrar_pagamento(db: AsyncSession, comanda_id: int, pagamento_data: PagamentoCreateSchema) -> Comanda:
-        """✅ CORRIGIDO: Registra um pagamento na comanda com suporte a saldo_credito"""
-
+        """Registra um pagamento na comanda com suporte a saldo_credito"""
         try:
             comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
             if not comanda:
@@ -236,8 +281,11 @@ class ComandaService:
             # Atualizar valor pago
             comanda.valor_pago = (comanda.valor_pago or Decimal(0)) + pagamento_data.valor_pago
 
-            # Recalcular saldo devedor
-            comanda.atualizar_valores_comanda(apenas_saldo=True)
+            # ✅ CORRIGIDO: Calcular manualmente
+            valor_total_original = (comanda.valor_final_comanda or Decimal(0)) + (
+                        comanda.valor_taxa_servico or Decimal(0)) - (comanda.valor_desconto or Decimal(0))
+            valor_coberto = (comanda.valor_pago or Decimal(0)) + (comanda.valor_credito_usado or Decimal(0))
+            comanda.valor_total_calculado = max(Decimal(0), valor_total_original - valor_coberto)
 
             # Verificar se há pagamento excedente e cliente para creditar
             cliente = None
@@ -272,19 +320,17 @@ class ComandaService:
                     )
 
                     logger.info(f"💰 Crédito adicionado ao cliente {cliente.id}: R$ {valor_excedente}")
-                else:
-                    logger.warning(
-                        f"⚠️ Cliente ID {comanda.id_cliente_associado} não encontrado para creditar excedente")
-                    # Ajustar o valor total calculado para zero mesmo sem cliente
-                    comanda.valor_total_calculado = Decimal(0)
 
             # Atualizar status
             if comanda.valor_total_calculado <= Decimal(0):
                 comanda.status_comanda = StatusComanda.PAGA_TOTALMENTE
                 logger.info(f"✅ Comanda {comanda_id} PAGA TOTALMENTE")
-            elif comanda.valor_coberto > 0:
+            elif valor_coberto > 0:
                 comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
                 logger.info(f"🔄 Comanda {comanda_id} PAGA PARCIALMENTE")
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            sanitizar_valores_monetarios_sync(comanda)
 
             # Commit para salvar todas as alterações
             await db.commit()
@@ -293,12 +339,7 @@ class ComandaService:
             await db.refresh(comanda)
             if cliente:
                 await db.refresh(cliente)
-                logger.info(f"✅ Saldo de crédito do cliente {cliente.id} atualizado: R$ {cliente.saldo_credito}")
 
-            logger.info(f"✅ Pagamento registrado: Comanda {comanda_id}, "
-                        f"Valor {pagamento_data.valor_pago}, "
-                        f"Status: {comanda.status_comanda}, "
-                        f"Saldo: {comanda.valor_total_calculado}")
             return comanda
 
         except ComandaValidationError:
@@ -311,16 +352,7 @@ class ComandaService:
     @staticmethod
     async def usar_credito_cliente(db: AsyncSession, comanda_id: int,
                                    valor_credito: Optional[Decimal] = None) -> Comanda:
-        """
-        ✅ CORRIGIDO: Usa o saldo de crédito do cliente para pagar a comanda
-
-        Args:
-            comanda_id: ID da comanda
-            valor_credito: Valor específico de crédito a usar. Se None, usa todo o saldo disponível até o valor da comanda
-
-        Returns:
-            Comanda atualizada
-        """
+        """Usa o saldo de crédito do cliente para pagar a comanda"""
         try:
             comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
             if not comanda:
@@ -385,8 +417,11 @@ class ComandaService:
             else:
                 comanda.observacoes = obs_credito
 
-            # Recalcular saldo devedor
-            comanda.atualizar_valores_comanda(apenas_saldo=True)
+            # ✅ CORRIGIDO: Calcular manualmente
+            valor_total_original = (comanda.valor_final_comanda or Decimal(0)) + (
+                        comanda.valor_taxa_servico or Decimal(0)) - (comanda.valor_desconto or Decimal(0))
+            valor_coberto = (comanda.valor_pago or Decimal(0)) + (comanda.valor_credito_usado or Decimal(0))
+            comanda.valor_total_calculado = max(Decimal(0), valor_total_original - valor_coberto)
 
             # Atualizar status
             if comanda.valor_total_calculado <= Decimal(0):
@@ -394,17 +429,15 @@ class ComandaService:
             else:
                 comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
 
+            # ✅ CORRIGIDO: Usar função síncrona
+            sanitizar_valores_monetarios_sync(comanda)
+
             # Commit para salvar todas as alterações
             await db.commit()
 
             # Refresh para garantir que os dados estão atualizados
             await db.refresh(comanda)
             await db.refresh(cliente)
-
-            logger.info(f"✅ Crédito do cliente usado: Comanda {comanda_id}, "
-                        f"Valor: {valor_a_usar}, "
-                        f"Saldo de crédito restante: {cliente.saldo_credito}, "
-                        f"Saldo comanda: {comanda.valor_total_calculado}")
 
             return comanda
 
@@ -418,9 +451,7 @@ class ComandaService:
     @staticmethod
     async def registrar_fiado(db: AsyncSession, comanda_id: int, fiado_data: FiadoCreate) -> Comanda:
         """
-        ✅ CORRIGIDO: Registra fiado na comanda
-        - valor_fiado: para controle/relatórios
-        - valor_pago: para cálculo do saldo
+        ✅ CORRIGIDO: Registra fiado na comanda - COMPATÍVEL COM NOVO SCHEMA
         """
         try:
             comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
@@ -432,8 +463,9 @@ class ComandaService:
                 raise ComandaValidationError(
                     f"Não é possível registrar fiado em comanda {comanda.status_comanda.value}")
 
-            valor_a_fiar = fiado_data.valor_fiado
-            if valor_a_fiar <= Decimal(0):
+            # ✅ CORRIGIDO: Usar método do schema para obter valor
+            valor_a_fiar = fiado_data.get_valor_fiado()
+            if not valor_a_fiar or valor_a_fiar <= Decimal(0):
                 raise ComandaValidationError("Valor do fiado deve ser maior que zero")
 
             logger.info(f"📝 Registrando fiado - Comanda {comanda_id}: Valor: {valor_a_fiar}")
@@ -452,14 +484,20 @@ class ComandaService:
             comanda.valor_fiado = (comanda.valor_fiado or Decimal(0)) + valor_a_fiar
             comanda.valor_pago = (comanda.valor_pago or Decimal(0)) + valor_a_fiar
 
-            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=True
-            comanda.atualizar_valores_comanda(apenas_saldo=True)
+            # ✅ CORRIGIDO: Calcular manualmente
+            valor_total_original = (comanda.valor_final_comanda or Decimal(0)) + (
+                        comanda.valor_taxa_servico or Decimal(0)) - (comanda.valor_desconto or Decimal(0))
+            valor_coberto = (comanda.valor_pago or Decimal(0)) + (comanda.valor_credito_usado or Decimal(0))
+            comanda.valor_total_calculado = max(Decimal(0), valor_total_original - valor_coberto)
 
             # Atualizar status
             if comanda.valor_total_calculado <= Decimal(0):
                 comanda.status_comanda = StatusComanda.PAGA_TOTALMENTE
             else:
                 comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            sanitizar_valores_monetarios_sync(comanda)
 
             await db.commit()
             await db.refresh(comanda)
@@ -511,14 +549,20 @@ class ComandaService:
                 else:
                     comanda.observacoes = obs_credito
 
-            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=True
-            comanda.atualizar_valores_comanda(apenas_saldo=True)
+            # ✅ CORRIGIDO: Calcular manualmente
+            valor_total_original = (comanda.valor_final_comanda or Decimal(0)) + (
+                        comanda.valor_taxa_servico or Decimal(0)) - (comanda.valor_desconto or Decimal(0))
+            valor_coberto = (comanda.valor_pago or Decimal(0)) + (comanda.valor_credito_usado or Decimal(0))
+            comanda.valor_total_calculado = max(Decimal(0), valor_total_original - valor_coberto)
 
             # Atualizar status
             if comanda.valor_total_calculado <= Decimal(0):
                 comanda.status_comanda = StatusComanda.PAGA_TOTALMENTE
             else:
                 comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            sanitizar_valores_monetarios_sync(comanda)
 
             await db.commit()
             await db.refresh(comanda)
@@ -539,23 +583,52 @@ class ComandaService:
 
     @staticmethod
     async def fechar_comanda(db: AsyncSession, comanda_id: int) -> Comanda:
-        """Fecha uma comanda"""
+        """Fecha uma comanda com validações de consumo, pedido, pagamento — ou permite se estiver vazia"""
         try:
-            comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
+            comanda = await ComandaService.buscar_comanda_completa(db, comanda_id)
             if not comanda:
                 raise ComandaValidationError(f"Comanda {comanda_id} não encontrada")
 
-            # Validar se pode ser fechada
-            if comanda.status_comanda not in [StatusComanda.PAGA_TOTALMENTE, StatusComanda.EM_FIADO]:
-                raise ComandaValidationError(
-                    "Comanda só pode ser fechada se estiver totalmente paga ou com saldo em fiado"
-                )
+            # Verificar se já está fechada
+            if comanda.status_comanda == StatusComanda.FECHADA:
+                raise ComandaValidationError("Esta comanda já está fechada")
 
-            comanda.status_comanda = StatusComanda.FECHADA
+            # ✅ NOVA LÓGICA: Verificar se a comanda está vazia
+            is_comanda_vazia = (
+                    (not hasattr(comanda, 'itens_pedido') or not comanda.itens_pedido or len(
+                        comanda.itens_pedido) == 0) and
+                    (not hasattr(comanda, 'pagamentos') or not comanda.pagamentos or len(comanda.pagamentos) == 0) and
+                    (comanda.valor_final_comanda is None or comanda.valor_final_comanda <= Decimal("0.00"))
+            )
+
+            logger.info(f"🔍 Verificando comanda {comanda_id}: "
+                        f"Itens: {len(comanda.itens_pedido) if hasattr(comanda, 'itens_pedido') and comanda.itens_pedido else 0}, "
+                        f"Pagamentos: {len(comanda.pagamentos) if hasattr(comanda, 'pagamentos') and comanda.pagamentos else 0}, "
+                        f"Valor final: {comanda.valor_final_comanda}, "
+                        f"Status: {comanda.status_comanda}, "
+                        f"Vazia: {is_comanda_vazia}")
+
+            if is_comanda_vazia:
+                # ✅ COMANDA VAZIA: Pode ser fechada independente do status
+                logger.info(f"📝 Fechando comanda vazia {comanda_id}")
+                comanda.status_comanda = StatusComanda.FECHADA
+            else:
+                # ✅ COMANDA COM ITENS: Validar se está paga ou em fiado
+                if comanda.status_comanda not in [StatusComanda.PAGA_TOTALMENTE, StatusComanda.EM_FIADO]:
+                    raise ComandaValidationError(
+                        "A comanda só pode ser fechada se estiver totalmente paga, com saldo em fiado ou vazia"
+                    )
+
+                logger.info(f"💰 Fechando comanda {comanda_id} com status {comanda.status_comanda}")
+                comanda.status_comanda = StatusComanda.FECHADA
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            sanitizar_valores_monetarios_sync(comanda)
+
             await db.commit()
             await db.refresh(comanda)
 
-            logger.info(f"✅ Comanda fechada: ID {comanda_id}")
+            logger.info(f"✅ Comanda fechada com sucesso: ID {comanda_id}")
             return comanda
 
         except ComandaValidationError:
@@ -563,7 +636,9 @@ class ComandaService:
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ Erro ao fechar comanda {comanda_id}: {e}")
-            raise ComandaValidationError(f"Erro interno ao fechar comanda: {str(e)}")
+            raise ComandaValidationError(
+                "Erro interno ao tentar fechar a comanda. Tente novamente ou contate o suporte técnico."
+            )
 
     @staticmethod
     async def gerar_qrcode(db: AsyncSession, comanda_id: int) -> Comanda:
@@ -575,6 +650,10 @@ class ComandaService:
 
             if not comanda.qr_code_comanda_hash:
                 comanda.qr_code_comanda_hash = str(uuid.uuid4())
+
+                # ✅ CORRIGIDO: Usar função síncrona
+                sanitizar_valores_monetarios_sync(comanda)
+
                 await db.commit()
                 await db.refresh(comanda)
 
@@ -624,14 +703,20 @@ class ComandaService:
                 else:
                     comanda.observacoes = observacao_desconto
 
-            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=False (recalcular tudo)
-            comanda.atualizar_valores_comanda(apenas_saldo=False)
+            # ✅ CORRIGIDO: Calcular manualmente
+            valor_total_original = (comanda.valor_final_comanda or Decimal(0)) + (
+                        comanda.valor_taxa_servico or Decimal(0)) - (comanda.valor_desconto or Decimal(0))
+            valor_coberto = (comanda.valor_pago or Decimal(0)) + (comanda.valor_credito_usado or Decimal(0))
+            comanda.valor_total_calculado = max(Decimal(0), valor_total_original - valor_coberto)
 
             # Atualizar status se necessário
-            if comanda.valor_total_calculado <= Decimal(0) and comanda.valor_coberto > 0:
+            if comanda.valor_total_calculado <= Decimal(0) and valor_coberto > 0:
                 comanda.status_comanda = StatusComanda.PAGA_TOTALMENTE
-            elif comanda.valor_coberto > 0:
+            elif valor_coberto > 0:
                 comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
+
+            # ✅ CORRIGIDO: Usar função síncrona
+            sanitizar_valores_monetarios_sync(comanda)
 
             await db.commit()
             await db.refresh(comanda)
@@ -650,43 +735,10 @@ class ComandaService:
             raise ComandaValidationError(f"Erro interno ao aplicar desconto: {str(e)}")
 
     @staticmethod
-    async def adicionar_item_comanda(db: AsyncSession, comanda_id: int, item_data) -> Comanda:
-        """
-        ✅ CORRIGIDO: Quando adicionar itens, usar método unificado
-        """
-        try:
-            comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
-            if not comanda:
-                raise ComandaValidationError(f"Comanda {comanda_id} não encontrada")
-
-            # ... lógica para adicionar item ...
-
-            # ✅ CORREÇÃO: Usar método unificado com flag apenas_saldo=False (recalcular tudo)
-            comanda.atualizar_valores_comanda(apenas_saldo=False)
-
-            await db.commit()
-            await db.refresh(comanda)
-
-            return comanda
-
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"❌ Erro ao adicionar item: {e}")
-            raise ComandaValidationError(f"Erro interno: {str(e)}")
-
-    @staticmethod
     async def adicionar_credito_cliente(db: AsyncSession, cliente_id: int, valor_credito: Decimal,
                                         observacoes: Optional[str] = None) -> Cliente:
         """
         ✅ CORRIGIDO: Adiciona crédito diretamente ao saldo do cliente
-
-        Args:
-            cliente_id: ID do cliente
-            valor_credito: Valor do crédito a adicionar
-            observacoes: Observações sobre o crédito
-
-        Returns:
-            Cliente atualizado
         """
         try:
             if valor_credito <= 0:
@@ -710,11 +762,6 @@ class ComandaService:
                 .where(Cliente.id == cliente_id)
                 .values(saldo_credito=cliente.saldo_credito)
             )
-
-            # Adicionar observação se fornecida
-            if observacoes:
-                # Aqui você pode adicionar a observação em algum histórico de transações, se existir
-                pass
 
             # Commit para salvar todas as alterações
             await db.commit()
@@ -782,52 +829,48 @@ class ComandaService:
     async def recalcular_totais_comanda(db: AsyncSession, comanda_id: int, fazer_commit: bool = True) -> Optional[
         Comanda]:
         """
-        ✅ CORRIGIDO: Recalcula totais da comanda baseado nos itens
+        ✅ VERSÃO COMPLETAMENTE SÍNCRONA - SEM GREENLET ERRORS
         """
         try:
             logger.info(f"🔄 Recalculando totais da comanda {comanda_id}")
 
-            # Calcular total dos itens
-            result_totais = await db.execute(
-                select(
-                    func.coalesce(func.sum(ItemPedido.preco_unitario * ItemPedido.quantidade), 0).label('total_itens')
-                ).where(ItemPedido.id_comanda == comanda_id)
-            )
-            total_itens = Decimal(str(result_totais.scalar() or 0))
+            # ✅ BUSCAR APENAS A COMANDA BÁSICA PRIMEIRO
+            result = await db.execute(select(Comanda).where(Comanda.id == comanda_id))
+            comanda = result.scalar_one_or_none()
 
-            # Buscar dados da comanda
-            result_comanda = await db.execute(
-                select(
-                    Comanda.percentual_taxa_servico,
-                    Comanda.valor_desconto,
-                    Comanda.valor_pago,
-                    Comanda.valor_credito_usado
-                ).where(Comanda.id == comanda_id)
-            )
-            comanda_data = result_comanda.first()
-
-            if not comanda_data:
+            if not comanda:
                 logger.error(f"❌ Comanda {comanda_id} não encontrada para recálculo")
                 return None
 
-            # Calcular valores
-            percentual_taxa = comanda_data.percentual_taxa_servico or Decimal("0.0")
+            # ✅ BUSCAR ITENS SEPARADAMENTE DE FORMA SIMPLES
+            result_itens = await db.execute(
+                select(ItemPedido.preco_unitario, ItemPedido.quantidade)
+                .where(ItemPedido.id_comanda == comanda_id)
+            )
+            itens_data = result_itens.fetchall()
+
+            # ✅ CALCULAR TOTAL DOS ITENS DE FORMA SÍNCRONA
+            total_itens = Decimal("0.00")
+            for preco_unitario, quantidade in itens_data:
+                if preco_unitario and quantidade:
+                    total_itens += Decimal(str(preco_unitario)) * Decimal(str(quantidade))
+
+            # ✅ USAR VALORES DIRETOS DA COMANDA (SEM RELACIONAMENTOS)
+            percentual_taxa = comanda.percentual_taxa_servico or Decimal("0.0")
             valor_taxa = (total_itens * percentual_taxa / Decimal("100")).quantize(Decimal("0.01"))
-            desconto = comanda_data.valor_desconto or Decimal("0.0")
+            desconto = comanda.valor_desconto or Decimal("0.0")
+            valor_pago = comanda.valor_pago or Decimal("0.0")
+            valor_credito = comanda.valor_credito_usado or Decimal("0.0")
 
-            # ✅ CORREÇÃO: Calcular valor total original e saldo devedor
+            # ✅ CALCULAR VALORES FINAIS
             valor_total_original = max(Decimal("0.0"), total_itens + valor_taxa - desconto)
-
-            # ✅ CORREÇÃO: Só subtrair valor_pago + valor_credito
-            valor_pago = comanda_data.valor_pago or Decimal("0.0")
-            valor_credito = comanda_data.valor_credito_usado or Decimal("0.0")
             valor_total_calculado = max(Decimal("0.0"), valor_total_original - valor_pago - valor_credito)
 
             logger.info(f"📊 Recálculo: Itens: {total_itens}, Taxa: {valor_taxa}, "
                         f"Desconto: {desconto}, Pago: {valor_pago}, "
                         f"Crédito: {valor_credito}, Saldo: {valor_total_calculado}")
 
-            # Atualizar no banco
+            # ✅ ATUALIZAR USANDO UPDATE DIRETO (MAIS SEGURO)
             await db.execute(
                 update(Comanda)
                 .where(Comanda.id == comanda_id)
@@ -839,45 +882,28 @@ class ComandaService:
                 )
             )
 
+            # ✅ COMMIT/FLUSH SEGURO
             if fazer_commit:
                 await db.commit()
                 logger.info(f"✅ Totais recalculados para comanda {comanda_id}")
             else:
                 await db.flush()
 
-            return await ComandaService.buscar_comanda_por_id(db, comanda_id)
+            # ✅ BUSCAR COMANDA ATUALIZADA PARA RETORNO
+            comanda_atualizada = await ComandaService.buscar_comanda_por_id(db, comanda_id)
+            return comanda_atualizada
 
         except Exception as e:
             logger.error(f"❌ Erro ao recalcular totais da comanda {comanda_id}: {e}")
             if fazer_commit:
-                await db.rollback()
+                try:
+                    await db.rollback()
+                except Exception as rollback_error:
+                    logger.error(f"❌ Erro no rollback: {rollback_error}")
             return None
 
 
-async def force_recalculate_and_commit(db: AsyncSession, id_comanda: int) -> bool:
-    """
-    FUNÇÃO DE EMERGÊNCIA - Força recálculo e commit imediato da comanda.
-    Usa uma nova transação para garantir persistência.
-    """
-    try:
-        logger.warning(f"🚨 FORÇA RECÁLCULO da comanda {id_comanda}")
-
-        # Recalcular com commit forçado
-        comanda = await recalculate_comanda_totals(db, id_comanda, fazer_commit=True)
-
-        if comanda:
-            logger.info(f"✅ FORÇA RECÁLCULO bem-sucedido - Comanda {id_comanda}")
-            return True
-        else:
-            logger.error(f"❌ FORÇA RECÁLCULO falhou - Comanda {id_comanda}")
-            return False
-
-    except Exception as e:
-        logger.exception(f"💥 ERRO na FORÇA RECÁLCULO da comanda {id_comanda}: {e}")
-        return False
-
-
-# Manter funções antigas para compatibilidade
+# Funções de compatibilidade
 async def create_comanda(db: AsyncSession, comanda_data: ComandaCreate) -> Comanda:
     return await ComandaService.criar_comanda(db, comanda_data)
 
@@ -927,7 +953,6 @@ async def recalculate_comanda_totals(db: AsyncSession, id_comanda: int, fazer_co
     return await ComandaService.recalcular_totais_comanda(db, id_comanda, fazer_commit)
 
 
-# Novas funções para compatibilidade
 async def usar_credito_cliente_na_comanda(db: AsyncSession, comanda_id: int,
                                           valor_credito: Optional[Decimal] = None) -> Comanda:
     return await ComandaService.usar_credito_cliente(db, comanda_id, valor_credito)
