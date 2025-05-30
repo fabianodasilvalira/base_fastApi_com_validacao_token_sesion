@@ -8,7 +8,7 @@ from sqlalchemy.orm import relationship
 from app.models.user import Base # Or from .base import Base if you create one
 
 class RefreshToken(Base):
-    __tablename__ = "refresh_tokens"
+    __tablename__ = "tokens"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)

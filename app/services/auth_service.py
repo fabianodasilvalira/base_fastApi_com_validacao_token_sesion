@@ -4,7 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
-from app.models.token import RefreshToken
+from app.models import RefreshToken
 from app.models.user import User
 from app.schemas.user import UserCreate
 from app.core.security import (
@@ -53,7 +53,7 @@ class AuthService:
 
     async def store_refresh_token(self, db: AsyncSession, user_id: int, token_str: str) -> RefreshToken:
         """Armazena o refresh token no banco"""
-        expires_at = datetime.now(timezone.utc) + timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).replace(tzinfo=None)
 
         refresh_token = RefreshToken(
             user_id=user_id,
