@@ -11,12 +11,13 @@ from .fiado import Fiado
 from .pagamento import Pagamento
 from .pedido import Pedido
 from .item_pedido import ItemPedido
+from .refresh_tokens import RefreshToken
 from .venda import Venda
 from .venda_produto_item import VendaProdutoItem
 
 
 
 __all__ = ["Base", "User","Cliente", "Mesa", "Comanda", "ItemPedido", "Produto", "Fiado", "Pagamento", "Pedido", "ItemPedido", "Venda",
-           "VendaProdutoItem", "Categoria"]
+           "VendaProdutoItem", "Categoria", "RefreshToken"]
 
 

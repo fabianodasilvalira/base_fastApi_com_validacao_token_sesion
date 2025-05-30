@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -44,7 +43,7 @@ class UserUpdate(BaseModel):
 
 
 class UserInDBBase(UserBase):
-    id: UUID
+    id: int  # Alterado de UUID para int
     hashed_password: str
     created_at: datetime
     updated_at: datetime
@@ -54,7 +53,7 @@ class UserInDBBase(UserBase):
 
 
 class UserPublic(UserBase):
-    id: UUID
+    id: int  # Alterado de UUID para int
     created_at: datetime
     updated_at: datetime
 
@@ -62,7 +61,7 @@ class UserPublic(UserBase):
         from_attributes = True
 
 class UserOut(BaseModel):
-    id: UUID
+    id: int  # Alterado de UUID para int
     email: EmailStr
     is_active: bool
     is_superuser: bool

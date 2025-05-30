@@ -111,6 +111,9 @@ class PedidoService:
             # 5. RECALCULAR COMANDA EM TRANSAÇÃO SEPARADA - GARANTIA DE PERSISTÊNCIA
             try:
                 logger.info(f"🔄 Iniciando recálculo da comanda {comanda.id}")
+                # AQUI ESTÁ A CORREÇÃO - ADICIONAR A CHAMADA PARA RECALCULAR
+                await comanda_service.recalculate_comanda_totals(db, comanda.id, fazer_commit=True)
+                logger.info(f"✅ Recálculo da comanda {comanda.id} concluído com sucesso")
 
             except Exception as e:
                 logger.error(f"💥 ERRO no recálculo da comanda {comanda.id}: {e}")

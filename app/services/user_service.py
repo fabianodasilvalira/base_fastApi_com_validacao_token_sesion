@@ -1,10 +1,9 @@
-from typing import Optional, Union
-from uuid import UUID
+from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.config.settings import settings
 from app.core.session import AsyncSessionFactory
 from app.models.user import User
 from app.schemas.user import UserCreate
@@ -21,7 +20,7 @@ class UserService:
         return result.scalars().first()
 
     @staticmethod
-    async def get_user_by_id(db: AsyncSession, user_id: UUID) -> Optional[User]:
+    async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:  # Alterado para int
         """Retrieves a user by ID."""
         logger.debug(f"Attempting to retrieve user by ID: {user_id}")
         stmt = select(User).where(User.id == user_id)
@@ -51,7 +50,6 @@ class UserService:
             hashed_password=hashed_password,
             is_active=user_in.is_active if user_in.is_active is not None else True,
             is_superuser=user_in.is_superuser if user_in.is_superuser is not None else False,
-            # Adicionando campos que podem estar faltando no modelo User, baseado em UserCreate
             username=user_in.username,
             first_name=user_in.first_name,
             last_name=user_in.last_name,
@@ -94,7 +92,3 @@ async def create_first_superuser():
 
 
 user_service = UserService()
-
-
-def get_user_by_id():
-    return None

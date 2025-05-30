@@ -30,7 +30,7 @@ class ItemPedido(Base):
     status = Column(Enum(StatusPedidoEnum), default=StatusPedidoEnum.RECEBIDO, nullable=False)
 
     created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now())  # Falta onupdate=func.now()
 
     pedido = relationship("Pedido", back_populates="itens")
     comanda = relationship("Comanda", back_populates="itens_pedido")
