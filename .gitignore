@@ -65,8 +65,6 @@ var/
 # DB / SQLite / Alembic
 *.db
 *.sqlite3
-alembic.ini
-migrations/
 
 # Docker
 *.pid
