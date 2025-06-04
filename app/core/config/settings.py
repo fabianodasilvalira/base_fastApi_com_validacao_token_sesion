@@ -37,7 +37,10 @@ class AppSettings(BaseAppSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[HttpUrl] = []
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = [
+        "http://localhost:3000",
+        "http://10.2.60.17:3000",
+    ]
 
     # Logging
     LOG_LEVEL: str = "INFO"
