@@ -1,6 +1,7 @@
 from functools import lru_cache
 from app.core.config.base import BaseAppSettings
-from pydantic import Field, HttpUrl, PostgresDsn, computed_field, BaseSettings, AnyHttpUrl
+from pydantic import Field, HttpUrl, PostgresDsn, computed_field, AnyHttpUrl
+from pydantic_settings import BaseSettings
 from typing import List
 from urllib.parse import quote_plus
 
