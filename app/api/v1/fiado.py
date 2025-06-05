@@ -16,7 +16,7 @@ router = APIRouter()
 async def criar_fiado(
     fiado_data: FiadoCreate,
     db: AsyncSession = Depends(get_db),
-    usuario_atual: User = Depends(deps.get_current_active_superuser)
+    #usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
     Cria um novo registro de fiado.
@@ -36,7 +36,7 @@ async def criar_fiado(
 @router.get("/", response_model=List[FiadoSchema], summary="Obter todos os fiados")
 async def obter_fiados(
     db: AsyncSession = Depends(get_db),
-    usuario_atual: User = Depends(deps.get_current_active_superuser)
+    #usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
     Retorna todos os fiados cadastrados.
@@ -56,7 +56,7 @@ async def obter_fiados(
 async def obter_fiado_por_id(
         fiado_id: int,
         db: AsyncSession = Depends(get_db),
-        usuario_atual: User = Depends(deps.get_current_active_superuser)
+        #usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
     Retorna os dados de um fiado pelo ID.
@@ -99,7 +99,7 @@ async def listar_fiados_por_cliente(
         skip: int = 0,
         limit: int = 100,
         db: AsyncSession = Depends(get_db),
-        usuario_atual=Depends(deps.get_current_active_user)
+        #usuario_atual=Depends(deps.get_current_active_user)
 ):
     """
     Lista todos os registros de fiado (pendentes e pagos) de um cliente específico.
