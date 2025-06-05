@@ -70,6 +70,16 @@ async def validar_valores(valor_original: float, valor_devido: float = None):
 
     return True
 
+async def get_fiado_all(db: AsyncSession):
+    result = await db.execute(select(Fiado))
+    fiados = result.scalars().all()
+    if not fiados:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Nenhum fiado encontrado"
+        )
+    return fiados
+
 
 async def get_fiado_by_id(db: AsyncSession, fiado_id: int):
     result = await db.execute(select(Fiado).filter(Fiado.id == fiado_id))
