@@ -17,7 +17,7 @@ class Cliente(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     imagem_url = Column(String(255), nullable=True, index=True)
-    saldo_credito = Column(Numeric(10, 2), default=0.00, nullable=False)
+    saldo_credito = Column(Numeric(10, 2), default=0.00, nullable=True)
 
     mesas_associadas = relationship("Mesa", back_populates="cliente_associado")
     fiados_registrados = relationship("Fiado", back_populates="cliente")
