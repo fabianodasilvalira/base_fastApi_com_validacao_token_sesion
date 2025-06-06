@@ -49,7 +49,7 @@ class FiadoCreate(BaseModel):
     class Config:
         from_attributes = True
         # ✅ PERMITE usar tanto valor_fiado quanto valor_original
-        allow_population_by_field_name = True
+        validate_by_name = True
         json_schema_extra = {
             "example": {
                 "id_cliente": 123,

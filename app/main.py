@@ -1,7 +1,9 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Security
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
+from fastapi.security import OAuth2PasswordBearer
 
 from app.api.v1 import (
     auth,
@@ -26,7 +28,6 @@ logger = logging.getLogger(__name__)
 # Configura o logging da aplicação
 setup_logging()
 
-# Inicializa a aplicação FastAPI com informações para o Swagger
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="API para gerenciamento de barzinho, incluindo mesas, pedidos, comandas, produtos e relatórios.",
@@ -34,12 +35,13 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
-# ✅ DEPOIS da criação do app
+# OAuth2 scheme para o Swagger usar no botão "Authorize"
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+
 @app.on_event("startup")
 async def on_startup():
     await create_first_superuser()
 
-# Middleware de CORS
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
@@ -49,7 +51,7 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-# Rotas
+# Inclui suas rotas normalmente
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Autenticação"])
 app.include_router(categoria.router, prefix=f"{settings.API_V1_STR}/categoria", tags=["Categoria"])
 app.include_router(clientes.router, prefix=f"{settings.API_V1_STR}/clientes", tags=["Clientes"])
@@ -64,3 +66,36 @@ app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["U
 app.include_router(venda.router, prefix=f"{settings.API_V1_STR}/venda", tags=["Vendas"])
 app.include_router(venda_produto_item.router, prefix=f"{settings.API_V1_STR}/venda_produto_item", tags=["Produtos por Venda"])
 app.include_router(notifications.router, prefix=f"{settings.API_V1_STR}/notifications", tags=["Notificações"])
+
+
+# Custom OpenAPI para incluir Bearer token no Swagger UI
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=settings.PROJECT_NAME,
+        version="1.0.0",
+        description="API para gerenciamento de barzinho, incluindo mesas, pedidos, comandas, produtos e relatórios.",
+        routes=app.routes,
+    )
+
+    # Define o esquema de segurança Bearer JWT para Swagger
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
+
+    # Aplica a segurança em todas as rotas (exceto a rota /login)
+    for path, methods in openapi_schema["paths"].items():
+        if f"{settings.API_V1_STR}/auth/login" not in path:
+            for method in methods.values():
+                method["security"] = [{"BearerAuth": []}]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi

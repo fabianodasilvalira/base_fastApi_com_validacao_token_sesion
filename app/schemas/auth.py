@@ -3,7 +3,7 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 class TokenRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 class TokenData(BaseModel):

@@ -1,8 +1,8 @@
-"""create_refresh_tokens_table
+"""criação das tabelas iniciais
 
-Revision ID: 99fe9413f4e4
+Revision ID: ea2919e91370
 Revises: 
-Create Date: 2025-05-30 11:58:26.645587
+Create Date: 2025-06-01 21:18:48.527844
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '99fe9413f4e4'
+revision: str = 'ea2919e91370'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -89,16 +89,16 @@ def upgrade() -> None:
     sa.Column('nome', sa.String(), nullable=False),
     sa.Column('descricao', sa.Text(), nullable=True),
     sa.Column('preco_unitario', sa.Numeric(precision=10, scale=2), nullable=False),
-    sa.Column('disponivel', sa.Boolean(), nullable=True),
+    sa.Column('disponivel', sa.Boolean(), nullable=False),
     sa.Column('imagem_url', sa.String(length=255), nullable=True),
-    sa.Column('criado_em', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('atualizado_em', sa.DateTime(timezone=True), nullable=True),
     sa.Column('categoria_id', sa.Integer(), nullable=True),
+    sa.Column('criado_em', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('atualizado_em', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['categoria_id'], ['categorias.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_produtos_categoria_id'), 'produtos', ['categoria_id'], unique=False)
     op.create_index(op.f('ix_produtos_id'), 'produtos', ['id'], unique=False)
-    op.create_index(op.f('ix_produtos_imagem_url'), 'produtos', ['imagem_url'], unique=False)
     op.create_index(op.f('ix_produtos_nome'), 'produtos', ['nome'], unique=False)
     op.create_table('refresh_tokens',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -258,8 +258,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_refresh_tokens_id'), table_name='refresh_tokens')
     op.drop_table('refresh_tokens')
     op.drop_index(op.f('ix_produtos_nome'), table_name='produtos')
-    op.drop_index(op.f('ix_produtos_imagem_url'), table_name='produtos')
     op.drop_index(op.f('ix_produtos_id'), table_name='produtos')
+    op.drop_index(op.f('ix_produtos_categoria_id'), table_name='produtos')
     op.drop_table('produtos')
     op.drop_index(op.f('ix_mesas_qr_code_hash'), table_name='mesas')
     op.drop_index(op.f('ix_mesas_numero_identificador'), table_name='mesas')

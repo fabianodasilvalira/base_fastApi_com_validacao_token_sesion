@@ -1,3 +1,4 @@
+#app/core/config/security.py
 from pydantic import Field, HttpUrl
 from typing import List
 

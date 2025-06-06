@@ -6,9 +6,9 @@ from urllib.parse import quote_plus
 
 class AppSettings(BaseAppSettings):
     # Gerais
-    APP_ENV: str = "development"
-    PROJECT_NAME: str = "FastAPI Auth System"
-    API_V1_STR: str = "/api/v1"
+    APP_ENV: str
+    PROJECT_NAME: str
+    API_V1_STR: str
 
     # Banco de Dados
     DB_HOST: str
@@ -28,13 +28,13 @@ class AppSettings(BaseAppSettings):
         )
 
     # Redis
-    REDIS_URL: str  # ✅ <-- Adicione isto aqui
+    REDIS_URL: str 
 
     # Segurança
     ALGORITHM: str = "HS256"
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    REFRESH_TOKEN_EXPIRE_DAYS: int
 
     # CORS
     BACKEND_CORS_ORIGINS: List[HttpUrl] = []

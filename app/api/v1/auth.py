@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from fastapi.security import OAuth2PasswordRequestForm
+# Removido: from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from app.core.security import verify_password
 from app.core.session import get_db
-from app.schemas.auth import TokenResponse, RefreshTokenRequest
+# Adicionado TokenRequest
+from app.schemas.auth import TokenResponse, RefreshTokenRequest, TokenRequest
 from app.schemas.user import UserCreate, UserPublic
 from app.services.auth_service import auth_service
 from app.services.user_service import UserService
@@ -16,28 +17,31 @@ router = APIRouter()
 @router.post("/login", response_model=TokenResponse, summary="Autenticar usuário", tags=["Autenticação"])
 async def fazer_login(
     response: Response,
-    dados_formulario: OAuth2PasswordRequestForm = Depends(),
+    dados_login: TokenRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Autentica um usuário e retorna os tokens de acesso e refresh.
 
-    - **username**: E-mail do usuário
+    - **email**: E-mail do usuário (substituído username por email)
     - **password**: Senha do usuário
     """
     try:
-        logger.debug(f"Tentando login para: {dados_formulario.username}")
+        # Alterado de dados_formulario.username para dados_login.email
+        logger.debug(f"Tentando login para: {dados_login.email}")
 
-        usuario = await UserService.get_user_by_email(db, email=dados_formulario.username)
+        # Alterado de dados_formulario.username para dados_login.email
+        usuario = await UserService.get_user_by_email(db, email=dados_login.email)
         if not usuario:
-            logger.warning(f"Usuário {dados_formulario.username} não encontrado.")
+            logger.warning(f"Usuário {dados_login.email} não encontrado.")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="E-mail ou senha incorretos",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        if not verify_password(dados_formulario.password, usuario.hashed_password):
+        # Alterado de dados_formulario.password para dados_login.password
+        if not verify_password(dados_login.password, usuario.hashed_password):
             logger.warning(f"Senha incorreta para {usuario.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -64,7 +68,7 @@ async def fazer_login(
             value=token_refresh,
             httponly=True,
             samesite="lax",
-            secure=True,
+            secure=True, # Considere True apenas em produção com HTTPS
             max_age=30 * 24 * 60 * 60  # 30 dias
         )
 
@@ -157,6 +161,9 @@ async def cadastrar_novo_usuario(
     """
     logger.info(f"Tentativa de cadastro para o e-mail: {dados_usuario.email}")
 
+    # Nota: A lógica de verificação de usuário existente está duplicada
+    # entre auth_service.create_user e user_service.create_user.
+    # Idealmente, deveria estar apenas no serviço.
     usuario_existente = await auth_service.get_user_by_email(db, email=dados_usuario.email)
     if usuario_existente:
         logger.warning(f"E-mail já cadastrado: {dados_usuario.email}")
@@ -165,6 +172,9 @@ async def cadastrar_novo_usuario(
             detail="Já existe um usuário com este e-mail."
         )
 
+    # Considerar chamar user_service.create_user aqui em vez de auth_service.create_user
+    # para manter a responsabilidade de criação de usuário no UserService.
     novo_usuario = await auth_service.create_user(db, user_in=dados_usuario)
     logger.info(f"Usuário criado com sucesso: {novo_usuario.email} (ID: {novo_usuario.id})")
     return novo_usuario
+

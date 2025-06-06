@@ -26,7 +26,7 @@ class ItemPedidoCreate(BaseModel):
 
     class Config:
         from_attributes = True
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id_produto": 5,
                 "quantidade": 2,
