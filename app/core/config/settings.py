@@ -1,6 +1,7 @@
 from functools import lru_cache
 from app.core.config.base import BaseAppSettings
-from pydantic import Field, HttpUrl, PostgresDsn, computed_field
+from pydantic import Field, HttpUrl, PostgresDsn, computed_field, AnyHttpUrl
+from pydantic_settings import BaseSettings
 from typing import List
 from urllib.parse import quote_plus
 
@@ -37,7 +38,10 @@ class AppSettings(BaseAppSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[HttpUrl] = []
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = [
+        "http://localhost:3000",
+        "http://10.2.60.17:3000",
+    ]
 
     # Logging
     LOG_LEVEL: str = "INFO"

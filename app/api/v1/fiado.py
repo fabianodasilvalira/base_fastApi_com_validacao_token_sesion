@@ -16,7 +16,7 @@ router = APIRouter()
 async def criar_fiado(
     fiado_data: FiadoCreate,
     db: AsyncSession = Depends(get_db),
-    usuario_atual: User = Depends(deps.get_current_active_superuser)
+    #usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
     Cria um novo registro de fiado.
@@ -33,11 +33,30 @@ async def criar_fiado(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Erro ao criar fiado: {str(e)}")
 
 
+@router.get("/", response_model=List[FiadoSchema], summary="Obter todos os fiados")
+async def obter_fiados(
+    db: AsyncSession = Depends(get_db),
+    #usuario_atual: User = Depends(deps.get_current_active_superuser)
+):
+    """
+    Retorna todos os fiados cadastrados.
+    """
+    try:
+        return await fiado_service.get_fiado_all(db)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao buscar fiados: {str(e)}"
+        )
+
+
 @router.get("/{fiado_id}", response_model=FiadoSchema, summary="Obter fiado por ID")
 async def obter_fiado_por_id(
         fiado_id: int,
         db: AsyncSession = Depends(get_db),
-        usuario_atual: User = Depends(deps.get_current_active_superuser)
+        #usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
     Retorna os dados de um fiado pelo ID.
@@ -80,7 +99,7 @@ async def listar_fiados_por_cliente(
         skip: int = 0,
         limit: int = 100,
         db: AsyncSession = Depends(get_db),
-        usuario_atual=Depends(deps.get_current_active_user)
+        #usuario_atual=Depends(deps.get_current_active_user)
 ):
     """
     Lista todos os registros de fiado (pendentes e pagos) de um cliente específico.
