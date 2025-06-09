@@ -8,7 +8,7 @@ from app.schemas.produto_schemas import ProdutoCreate, ProdutoOut, ProdutoUpdate
 from app.services import produto_service
 from app.api import deps
 
-router = APIRouter(prefix="/produtos", tags=["Produtos"])
+router = APIRouter()
 
 
 @router.get("/", response_model=List[ProdutoOut])
