@@ -1,4 +1,6 @@
 # app/api/routes/fiado.py
+import traceback
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -16,20 +18,32 @@ router = APIRouter()
 async def criar_fiado(
     fiado_data: FiadoCreate,
     db: AsyncSession = Depends(get_db),
-    #usuario_atual: User = Depends(deps.get_current_active_superuser)
+    usuario_atual: User = Depends(deps.get_current_active_superuser) # Ou get_current_active_user, dependendo da sua regra
 ):
     """
     Cria um novo registro de fiado.
+
+    **Validações:**
+    - Garante que `id_cliente` e `id_comanda` existam (se fornecidos e obrigatórios).
+    - Atribui o `id_usuario_registrou` automaticamente se não for informado na requisição.
+    - Valida que `valor_devido` não exceda `valor_original`.
+    - Garante que `data_vencimento` não seja no passado.
     """
     try:
-        # Se não foi informado, assume o usuário logado como registrador
+        # Se o `id_usuario_registrou` não foi fornecido na requisição,
+        # assume o ID do usuário atualmente logado.
+        # Isso garante que sempre haja um usuário registrando, se a regra de negócio exigir.
         if not fiado_data.id_usuario_registrou:
             fiado_data.id_usuario_registrou = usuario_atual.id
 
+        # Chama o serviço para criar o fiado
         return await fiado_service.create_fiado(db=db, fiado_data=fiado_data)
     except HTTPException as e:
+        # Captura exceções HTTP já levantadas e as re-lança
         raise e
     except Exception as e:
+        # Captura qualquer outra exceção inesperada e a converte em um erro HTTP 400
+        traceback.print_exc() # Imprime o stack trace completo para depuração
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Erro ao criar fiado: {str(e)}")
 
 

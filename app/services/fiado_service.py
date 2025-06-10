@@ -93,36 +93,60 @@ async def get_fiado_by_id(db: AsyncSession, fiado_id: int):
 
 
 async def create_fiado(db: AsyncSession, fiado_data: FiadoCreate):
-    # Verifica se cliente existe
+    """
+    Cria um novo registro de fiado no banco de dados.
+
+    Args:
+        db (AsyncSession): A sessão do banco de dados.
+        fiado_data (FiadoCreate): Os dados do fiado a ser criado.
+
+    Returns:
+        Fiado: O objeto Fiado criado e persistido no banco de dados.
+
+    Raises:
+        HTTPException: Se o cliente, comanda ou usuário não existirem,
+                       ou se os valores monetários forem inválidos.
+    """
+    # 1. Verifica se cliente existe
+    # Essa função auxiliar deve levantar HTTPException se não encontrar.
     await verificar_cliente_existe(db, fiado_data.id_cliente)
 
-    # Verifica se comanda existe
+    # 2. Verifica se comanda existe
     await verificar_comanda_existe(db, fiado_data.id_comanda)
 
-    # Verifica se usuário registrador existe
-    await verificar_usuario_existe(db, fiado_data.id_usuario_registrou)
+    # 3. Verifica se usuário registrador existe (se o ID foi fornecido)
+    if fiado_data.id_usuario_registrou: # Só valida se o ID não for None
+        await verificar_usuario_existe(db, fiado_data.id_usuario_registrou)
 
-    # Valida os valores monetários
+    # 4. Valida os valores monetários (valor_original e valor_devido)
+    # Sua função validar_valores deve garantir que valor_original > 0 e valor_devido <= valor_original
     await validar_valores(fiado_data.valor_original, fiado_data.valor_devido)
 
-    # Cria novo fiado
+
+    # 5. Cria a instância do modelo Fiado
     novo_fiado = Fiado(
         id_comanda=fiado_data.id_comanda,
         id_cliente=fiado_data.id_cliente,
         id_usuario_registrou=fiado_data.id_usuario_registrou,
         valor_original=fiado_data.valor_original,
         valor_devido=fiado_data.valor_devido,
-        status_fiado=fiado_data.status_fiado,
+        # status_fiado já tem um default no model, mas pode ser explicitamente definido aqui
+        status_fiado=fiado_data.status_fiado if fiado_data.status_fiado else StatusFiado.PENDENTE,
         data_vencimento=fiado_data.data_vencimento,
         observacoes=fiado_data.observacoes
     )
 
-    db.add(novo_fiado)
-    await db.commit()
-    await db.refresh(novo_fiado)
+    # 6. Adiciona ao banco de dados e commita
+    try:
+        db.add(novo_fiado)
+        await db.commit()
+        await db.refresh(novo_fiado)
+    except Exception as e:
+        await db.rollback() # Garante que a transação seja revertida em caso de erro
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro interno ao salvar fiado: {str(e)}")
+
 
     return novo_fiado
-
 
 async def update_fiado(db: AsyncSession, fiado_id: int, fiado_update_data: FiadoUpdate):
     # Busca o fiado existente
