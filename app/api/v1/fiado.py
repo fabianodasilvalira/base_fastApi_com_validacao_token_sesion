@@ -18,7 +18,7 @@ router = APIRouter()
 async def criar_fiado(
     fiado_data: FiadoCreate,
     db: AsyncSession = Depends(get_db),
-    usuario_atual: User = Depends(deps.get_current_active_superuser) # Ou get_current_active_user, dependendo da sua regra
+    usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
     Cria um novo registro de fiado.
