@@ -11,6 +11,21 @@ class StatusFiado(str, Enum):
     PAGO_TOTALMENTE = "Pago Totalmente"
     CANCELADO = "Cancelado"
 
+# Modelo base para todos os schemas de Fiado
+class FiadoBase(BaseModel):
+    id: int
+    valor_original: Decimal
+    valor_devido: Decimal
+    data_registro: datetime
+    data_vencimento: Optional[datetime] = None
+    # Campos adicionais
+    id_comanda: Optional[int] = None
+    id_cliente: Optional[int] = None
+    observacoes: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 # --- Schemas de Entrada (Requisição) ---
 
 class FiadoCreate(BaseModel):
