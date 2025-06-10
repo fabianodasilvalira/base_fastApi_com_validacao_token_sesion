@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
+from app.api import deps
 from app.core.security import verify_password
 from app.core.session import get_db
 from app.schemas.auth import TokenResponse, RefreshTokenRequest, TokenRequest
 from app.schemas.user import UserCreate, UserPublic # Certifique-se de que UserPublic está disponível
 from app.services.auth_service import auth_service
 from app.services.user_service import UserService
-from app.core import deps # Importa suas dependências
 from app.models.user import User # Importa o modelo de usuário
 
 router = APIRouter()
