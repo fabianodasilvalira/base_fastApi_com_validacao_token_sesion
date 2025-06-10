@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-# Removido: from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from app.core.security import verify_password
 from app.core.session import get_db
-# Adicionado TokenRequest
 from app.schemas.auth import TokenResponse, RefreshTokenRequest, TokenRequest
-from app.schemas.user import UserCreate, UserPublic
+from app.schemas.user import UserCreate, UserPublic # Certifique-se de que UserPublic está disponível
 from app.services.auth_service import auth_service
 from app.services.user_service import UserService
+from app.core import deps # Importa suas dependências
+from app.models.user import User # Importa o modelo de usuário
 
 router = APIRouter()
 
@@ -23,14 +23,12 @@ async def fazer_login(
     """
     Autentica um usuário e retorna os tokens de acesso e refresh.
 
-    - **email**: E-mail do usuário (substituído username por email)
+    - **email**: E-mail do usuário
     - **password**: Senha do usuário
     """
     try:
-        # Alterado de dados_formulario.username para dados_login.email
         logger.debug(f"Tentando login para: {dados_login.email}")
 
-        # Alterado de dados_formulario.username para dados_login.email
         usuario = await UserService.get_user_by_email(db, email=dados_login.email)
         if not usuario:
             logger.warning(f"Usuário {dados_login.email} não encontrado.")
@@ -40,7 +38,6 @@ async def fazer_login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Alterado de dados_formulario.password para dados_login.password
         if not verify_password(dados_login.password, usuario.hashed_password):
             logger.warning(f"Senha incorreta para {usuario.email}")
             raise HTTPException(
@@ -161,9 +158,6 @@ async def cadastrar_novo_usuario(
     """
     logger.info(f"Tentativa de cadastro para o e-mail: {dados_usuario.email}")
 
-    # Nota: A lógica de verificação de usuário existente está duplicada
-    # entre auth_service.create_user e user_service.create_user.
-    # Idealmente, deveria estar apenas no serviço.
     usuario_existente = await auth_service.get_user_by_email(db, email=dados_usuario.email)
     if usuario_existente:
         logger.warning(f"E-mail já cadastrado: {dados_usuario.email}")
@@ -172,9 +166,19 @@ async def cadastrar_novo_usuario(
             detail="Já existe um usuário com este e-mail."
         )
 
-    # Considerar chamar user_service.create_user aqui em vez de auth_service.create_user
-    # para manter a responsabilidade de criação de usuário no UserService.
     novo_usuario = await auth_service.create_user(db, user_in=dados_usuario)
     logger.info(f"Usuário criado com sucesso: {novo_usuario.email} (ID: {novo_usuario.id})")
     return novo_usuario
 
+# --- Nova Rota: Obter informações do usuário atual ---
+@router.get("/me", response_model=UserPublic, summary="Obter informações do usuário atual", tags=["Autenticação", "Usuários"])
+async def get_usuario_atual(
+    usuario_atual: User = Depends(deps.get_current_active_user) # Usa a dependência para obter o usuário logado
+):
+    """
+    Retorna as informações públicas do usuário atualmente autenticado.
+
+    **Requer autenticação com token de acesso.**
+    """
+    logger.info(f"Informações do usuário {usuario_atual.email} solicitadas.")
+    return usuario_atual # O objeto 'usuario_atual' já é um modelo de Pydantic ou será convertido para UserPublic automaticamente
