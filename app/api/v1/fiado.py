@@ -47,6 +47,7 @@ async def criar_fiado(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Erro ao criar fiado: {str(e)}")
 
 
+
 @router.get("/", response_model=List[FiadoSchema], summary="Obter todos os fiados")
 async def obter_fiados(
     db: AsyncSession = Depends(get_db),
