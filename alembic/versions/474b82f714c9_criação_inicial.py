@@ -1,8 +1,8 @@
-"""criação das tabelas iniciais
+"""Criação inicial
 
-Revision ID: ea2919e91370
+Revision ID: 474b82f714c9
 Revises: 
-Create Date: 2025-06-01 21:18:48.527844
+Create Date: 2025-06-11 10:40:43.651740
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'ea2919e91370'
+revision: str = '474b82f714c9'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -40,7 +40,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.Column('imagem_url', sa.String(length=255), nullable=True),
-    sa.Column('saldo_credito', sa.Numeric(precision=10, scale=2), nullable=False),
+    sa.Column('saldo_credito', sa.Numeric(precision=10, scale=2), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_clientes_id'), 'clientes', ['id'], unique=False)
@@ -84,6 +84,18 @@ def upgrade() -> None:
     op.create_index(op.f('ix_mesas_id'), 'mesas', ['id'], unique=False)
     op.create_index(op.f('ix_mesas_numero_identificador'), 'mesas', ['numero_identificador'], unique=True)
     op.create_index(op.f('ix_mesas_qr_code_hash'), 'mesas', ['qr_code_hash'], unique=True)
+    op.create_table('password_reset_tokens',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('token', sa.String(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=True),
+    sa.Column('expires_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_password_reset_tokens_id'), 'password_reset_tokens', ['id'], unique=False)
+    op.create_index(op.f('ix_password_reset_tokens_token'), 'password_reset_tokens', ['token'], unique=True)
     op.create_table('produtos',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('nome', sa.String(), nullable=False),
@@ -261,6 +273,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_produtos_id'), table_name='produtos')
     op.drop_index(op.f('ix_produtos_categoria_id'), table_name='produtos')
     op.drop_table('produtos')
+    op.drop_index(op.f('ix_password_reset_tokens_token'), table_name='password_reset_tokens')
+    op.drop_index(op.f('ix_password_reset_tokens_id'), table_name='password_reset_tokens')
+    op.drop_table('password_reset_tokens')
     op.drop_index(op.f('ix_mesas_qr_code_hash'), table_name='mesas')
     op.drop_index(op.f('ix_mesas_numero_identificador'), table_name='mesas')
     op.drop_index(op.f('ix_mesas_id'), table_name='mesas')

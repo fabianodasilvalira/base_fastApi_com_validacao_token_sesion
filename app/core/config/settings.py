@@ -1,15 +1,16 @@
 from functools import lru_cache
-from app.core.config.base import BaseAppSettings
-from pydantic import Field, HttpUrl, PostgresDsn, computed_field, AnyHttpUrl
+from pydantic import Field, AnyHttpUrl, computed_field
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional, Union
 from urllib.parse import quote_plus
+from app.core.config.base import BaseAppSettings  # Supondo que esta classe exista
 
 class AppSettings(BaseAppSettings):
     # Gerais
     APP_ENV: str
     PROJECT_NAME: str
     API_V1_STR: str
+    FRONTEND_URL: str
 
     # Banco de Dados
     DB_HOST: str
@@ -18,10 +19,8 @@ class AppSettings(BaseAppSettings):
     DB_PASS: str
     DB_NAME: str
 
-    FIRST_SUPERUSER: str
-    FIRST_SUPERUSER_PASSWORD: str
-
-    @computed_field  # para Pydantic v2; se for v1 use @property
+    # Computed DATABASE_URL
+    @computed_field
     def DATABASE_URL(self) -> str:
         return (
             f"postgresql+asyncpg://{quote_plus(self.DB_USER)}:{quote_plus(self.DB_PASS)}"
@@ -29,19 +28,34 @@ class AppSettings(BaseAppSettings):
         )
 
     # Redis
-    REDIS_URL: str 
+    REDIS_URL: str
 
-    # Segurança
-    ALGORITHM: str = "HS256"
+    # JWT
     SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    SECRET_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REFRESH_TOKEN_EXPIRE_DAYS: int
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int
+
+    # Superusuário
+    FIRST_SUPERUSER: str
+    FIRST_SUPERUSER_PASSWORD: str
+
+    # Email
+    MAIL_USERNAME: Optional[str] = None
+    MAIL_PASSWORD: Optional[str] = None
+    MAIL_FROM: Optional[str] = None
+    MAIL_FROM_NAME: Optional[str] = None
+    MAIL_PORT: int = 587
+    MAIL_SERVER: Optional[str] = None
+    MAIL_TLS: bool = True
+    MAIL_SSL: bool = False
+    MAIL_STARTTLS: Optional[bool] = True
+    MAIL_SSL_TLS: Optional[bool] = False
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = [
-        "http://localhost:3000",
-        "http://10.2.60.17:3000",
-    ]
+    BACKEND_CORS_ORIGINS: Union[str, List[AnyHttpUrl]] = []
 
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -49,6 +63,11 @@ class AppSettings(BaseAppSettings):
     ERROR_LOG_FILE_PATH: str = "./logs/errors.log"
     LOG_ROTATION_SIZE: str = "10 MB"
     LOG_RETENTION_TIME: str = "7 days"
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
 
 @lru_cache()
 def get_settings():

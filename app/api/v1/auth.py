@@ -1,24 +1,35 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
+# from pydantic import BaseModel, EmailStr  # Removido pois os schemas foram movidos
 
 from app.api import deps
 from app.core.security import verify_password
 from app.core.session import get_db
-from app.schemas.auth import TokenResponse, RefreshTokenRequest, TokenRequest
-from app.schemas.user import UserCreate, UserPublic # Certifique-se de que UserPublic está disponível
+# Importações dos schemas atualizadas
+from app.schemas.auth import TokenResponse, RefreshTokenRequest, TokenRequest, ForgotPasswordRequest, \
+    ResetPasswordRequest
+from app.schemas.user import UserCreate, UserPublic
 from app.services.auth_service import auth_service
 from app.services.user_service import UserService
-from app.models.user import User # Importa o modelo de usuário
+from app.models.user import User
+
+from app.services.email_service import EmailService
 
 router = APIRouter()
 
 
+# As classes de schema foram removidas daqui pois foram movidas para app.schemas.auth
+
+# =========================================================================
+# ROTAS EXISTENTES
+# =========================================================================
+
 @router.post("/login", response_model=TokenResponse, summary="Autenticar usuário", tags=["Autenticação"])
 async def fazer_login(
-    response: Response,
-    dados_login: TokenRequest,
-    db: AsyncSession = Depends(get_db)
+        response: Response,
+        dados_login: TokenRequest,
+        db: AsyncSession = Depends(get_db)
 ):
     """
     Autentica um usuário e retorna os tokens de acesso e refresh.
@@ -65,7 +76,7 @@ async def fazer_login(
             value=token_refresh,
             httponly=True,
             samesite="lax",
-            secure=True, # Considere True apenas em produção com HTTPS
+            secure=True,  # Considere True apenas em produção com HTTPS
             max_age=30 * 24 * 60 * 60  # 30 dias
         )
 
@@ -148,7 +159,8 @@ async def deslogar_usuario(
     return {"mensagem": "Logout realizado com sucesso"}
 
 
-@router.post("/signup", response_model=UserPublic, status_code=status.HTTP_201_CREATED, summary="Cadastro de novo usuário", tags=["Autenticação"])
+@router.post("/signup", response_model=UserPublic, status_code=status.HTTP_201_CREATED,
+             summary="Cadastro de novo usuário", tags=["Autenticação"])
 async def cadastrar_novo_usuario(
         dados_usuario: UserCreate,
         db: AsyncSession = Depends(get_db)
@@ -170,10 +182,11 @@ async def cadastrar_novo_usuario(
     logger.info(f"Usuário criado com sucesso: {novo_usuario.email} (ID: {novo_usuario.id})")
     return novo_usuario
 
-# --- Nova Rota: Obter informações do usuário atual ---
-@router.get("/me", response_model=UserPublic, summary="Obter informações do usuário atual", tags=["Autenticação", "Usuários"])
+
+@router.get("/me", response_model=UserPublic, summary="Obter informações do usuário atual",
+            tags=["Autenticação", "Usuários"])
 async def get_usuario_atual(
-    usuario_atual: User = Depends(deps.get_current_active_user) # Usa a dependência para obter o usuário logado
+        usuario_atual: User = Depends(deps.get_current_active_user)
 ):
     """
     Retorna as informações públicas do usuário atualmente autenticado.
@@ -181,4 +194,57 @@ async def get_usuario_atual(
     **Requer autenticação com token de acesso.**
     """
     logger.info(f"Informações do usuário {usuario_atual.email} solicitadas.")
-    return usuario_atual # O objeto 'usuario_atual' já é um modelo de Pydantic ou será convertido para UserPublic automaticamente
+    return usuario_atual
+
+
+# =========================================================================
+# ✅ NOVAS ROTAS PARA "ESQUECI MINHA SENHA"
+# =========================================================================
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK, summary="Solicitar redefinição de senha",
+             tags=["Autenticação"])
+async def solicitar_redefinicao_senha(
+        dados_solicitacao: ForgotPasswordRequest,
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Inicia o processo de redefinição de senha.
+    Um e-mail será enviado para o usuário com um token de redefinição.
+    """
+    logger.info(f"Solicitação de redefinição de senha para o e-mail: {dados_solicitacao.email}")
+
+    usuario = await UserService.get_user_by_email(db, email=dados_solicitacao.email)
+
+    if usuario:
+        token = await auth_service.create_password_reset_token(db, user_id=usuario.id)
+        await EmailService.send_password_reset_email(email_to=usuario.email, token=token, background_tasks=BackgroundTasks())
+        logger.info(f"TOKEN DE REDEFINIÇÃO (simulando envio de e-mail) para {usuario.email}: {token}")
+
+    return {"mensagem": "Se um usuário com este e-mail existir, um link para redefinição de senha foi enviado."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK, summary="Redefinir senha", tags=["Autenticação"])
+async def redefinir_senha(
+        dados_reset: ResetPasswordRequest,
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Redefine a senha do usuário usando um token válido.
+    """
+    logger.info(f"Tentativa de redefinição de senha com o token: {dados_reset.token[:8]}...")
+
+    usuario = await auth_service.get_user_by_password_reset_token(db, token=dados_reset.token)
+
+    if not usuario:
+        logger.warning("Token de redefinição de senha inválido ou expirado.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token inválido ou expirado."
+        )
+
+    await UserService.update_password(db, user=usuario, new_password=dados_reset.new_password)
+
+    await auth_service.invalidate_password_reset_token(db, token=dados_reset.token)
+
+    logger.info(f"Senha redefinida com sucesso para o usuário: {usuario.email}")
+    return {"mensagem": "Sua senha foi redefinida com sucesso."}

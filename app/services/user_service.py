@@ -91,4 +91,23 @@ async def create_first_superuser():
             logger.error(f"Erro ao criar superusuário: {e}")
 
 
+    @staticmethod
+    async def update_password(db: AsyncSession, user: User, new_password: str) -> None:
+        """
+        Atualiza a senha de um usuário, garantindo que ela seja hasheada.
+        """
+        logger.info(f"Atualizando senha para o usuário: {user.email}")
+
+        # Gera o hash da nova senha
+        hashed_password = get_password_hash(new_password)
+
+        # Atualiza o campo no objeto do usuário
+        user.hashed_password = hashed_password
+
+        # Adiciona o usuário à sessão e commita a alteração
+        db.add(user)
+        await db.commit()
+        logger.info(f"Senha para {user.email} atualizada com sucesso.")
+
+
 user_service = UserService()
