@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 from app.models.cliente import Cliente
 from app.schemas.cliente_schemas import ClienteCreate, ClienteUpdate
 from app.core.session import get_db_session
+from app.utils.validacoes import validar_email, validar_telefone
 
 
 async def get_cliente(db_session: AsyncSession, cliente_id: int):  # Alterado cliente_id: str para cliente_id: int
@@ -23,6 +24,9 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 
 async def create_cliente(db: AsyncSession, cliente_create: ClienteCreate):
+    # Valida telefone
+    validar_telefone(cliente_create.telefone)
+
     # Verifica se já existe cliente com MESMO nome e telefone
     query = select(Cliente).where(
         and_(
@@ -38,6 +42,7 @@ async def create_cliente(db: AsyncSession, cliente_create: ClienteCreate):
 
     novo_cliente = Cliente(**cliente_create.dict())
     db.add(novo_cliente)
+
     try:
         await db.commit()
         await db.refresh(novo_cliente)
