@@ -80,7 +80,7 @@ def _serializar_comanda_segura(comanda) -> dict:
         for item in comanda.itens_pedido:
             item_dict = {
                 "id": item.id,
-                "nome_item": getattr(item, 'nome_item', getattr(item, 'nome', 'Item sem nome')),  # ✅ Campo obrigatório
+                "nome_item": getattr(getattr(item, 'produto', None), 'nome', 'Item sem nome'),
                 "quantidade": getattr(item, 'quantidade', 1),
                 "valor_unitario": safe_decimal(getattr(item, 'valor_unitario', getattr(item, 'preco_unitario', 0))),
                 # ✅ Campo obrigatório

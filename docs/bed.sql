@@ -1,10 +1,3 @@
--- --------------------------------------------------------
--- Servidor:                     127.0.0.1
--- Versão do servidor:           PostgreSQL 11.21, compiled by Visual C++ build 1914, 64-bit
--- OS do Servidor:               
--- HeidiSQL Versão:              12.10.0.7000
--- --------------------------------------------------------
-
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET NAMES  */;
 /*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
@@ -13,19 +6,16 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
--- Copiando estrutura para tabela public.alembic_version
 CREATE TABLE IF NOT EXISTS "alembic_version" (
 	"version_num" VARCHAR(32) NOT NULL,
 	PRIMARY KEY ("version_num")
 );
 
--- Copiando dados para a tabela public.alembic_version: 0 rows
 /*!40000 ALTER TABLE "alembic_version" DISABLE KEYS */;
 INSERT INTO "alembic_version" ("version_num") VALUES
 	('474b82f714c9');
 /*!40000 ALTER TABLE "alembic_version" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.categorias
 CREATE TABLE IF NOT EXISTS "categorias" (
 	"id" SERIAL NOT NULL,
 	"nome" VARCHAR(100) NOT NULL,
@@ -38,7 +28,6 @@ CREATE TABLE IF NOT EXISTS "categorias" (
 	UNIQUE ("nome")
 );
 
--- Copiando dados para a tabela public.categorias: 3 rows
 /*!40000 ALTER TABLE "categorias" DISABLE KEYS */;
 INSERT INTO "categorias" ("id", "nome", "descricao", "imagem_url", "criado_em", "atualizado_em") VALUES
 	(1, 'Cervejass', 'Bebidas alcoólicas fermentadas, geralmente servidas geladas.', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTWh4A_KgrM_goJl06T9Pf6CeG1uvLaZS4QVg&s', '2025-05-27 08:19:16.208783-03', '2025-06-12 12:15:59.100367-03'),
@@ -46,7 +35,6 @@ INSERT INTO "categorias" ("id", "nome", "descricao", "imagem_url", "criado_em", 
 	(3, 'Tiragosto', 'Petiscos e acompanhamentos servidos com bebidas, como frituras, queijos e calabresa.', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2FlpJ-I394mMEm6WIIB9sWWAWOXWFbKB9IQ&s', '2025-05-27 08:19:16.243888-03', '2025-06-12 12:16:44.156167-03');
 /*!40000 ALTER TABLE "categorias" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.clientes
 CREATE TABLE IF NOT EXISTS "clientes" (
 	"id" SERIAL NOT NULL,
 	"nome" VARCHAR NOT NULL,
@@ -64,7 +52,6 @@ CREATE TABLE IF NOT EXISTS "clientes" (
 	KEY ("telefone")
 );
 
--- Copiando dados para a tabela public.clientes: 4 rows
 /*!40000 ALTER TABLE "clientes" DISABLE KEYS */;
 INSERT INTO "clientes" ("id", "nome", "telefone", "observacoes", "endereco", "created_at", "updated_at", "imagem_url", "saldo_credito") VALUES
 	(1, 'João da Silva', '31999991234', 'Cliente frequente, prefere pagar no débito.', 'Rua das Flores, 123 - Centro', NULL, '2025-06-12 08:38:35.564816', NULL, NULL),
@@ -74,7 +61,6 @@ INSERT INTO "clientes" ("id", "nome", "telefone", "observacoes", "endereco", "cr
 	(2, 'Maria Oliveira', '31988885678', 'Gosta de tiragostos e cerveja artesanal.', 'Av. Brasil, 456 - Bairro São Pedro', NULL, '2025-06-12 11:39:35.527066', NULL, NULL);
 /*!40000 ALTER TABLE "clientes" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.comandas
 CREATE TABLE IF NOT EXISTS "comandas" (
 	"id" SERIAL NOT NULL,
 	"id_mesa" INTEGER NOT NULL,
@@ -100,7 +86,6 @@ CREATE TABLE IF NOT EXISTS "comandas" (
 	CONSTRAINT "comandas_id_mesa_fkey" FOREIGN KEY ("id_mesa") REFERENCES "mesas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.comandas: 3 rows
 /*!40000 ALTER TABLE "comandas" DISABLE KEYS */;
 INSERT INTO "comandas" ("id", "id_mesa", "id_cliente_associado", "status_comanda", "valor_total_calculado", "percentual_taxa_servico", "valor_taxa_servico", "valor_desconto", "valor_final_comanda", "valor_pago", "valor_fiado", "valor_credito_usado", "motivo_cancelamento", "observacoes", "qr_code_comanda_hash", "created_at", "updated_at") VALUES
 	(1, 1, 1, 'ABERTA', 0.00, 10.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, NULL, 'mesa do joao', 'b99d5121-b41c-4742-8c12-6765ea654292', '2025-06-12 08:17:29.606087', '2025-06-12 08:17:29.606087'),
@@ -108,7 +93,6 @@ INSERT INTO "comandas" ("id", "id_mesa", "id_cliente_associado", "status_comanda
 	(3, 3, 3, 'ABERTA', 0.00, 10.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, NULL, 'mesa do carlos', '1bc30886-c28d-4ad3-9a48-e4523efd40bc', '2025-06-12 08:22:01.067865', '2025-06-12 08:22:01.067865');
 /*!40000 ALTER TABLE "comandas" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.fiados
 CREATE TABLE IF NOT EXISTS "fiados" (
 	"id" SERIAL NOT NULL,
 	"id_comanda" INTEGER NOT NULL,
@@ -128,14 +112,12 @@ CREATE TABLE IF NOT EXISTS "fiados" (
 	CONSTRAINT "fiados_id_usuario_registrou_fkey" FOREIGN KEY ("id_usuario_registrou") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.fiados: 0 rows
 /*!40000 ALTER TABLE "fiados" DISABLE KEYS */;
 INSERT INTO "fiados" ("id", "id_comanda", "id_cliente", "id_usuario_registrou", "valor_original", "valor_devido", "status_fiado", "data_vencimento", "observacoes", "data_registro", "updated_at") VALUES
 	(1, 1, 2, 1, 150.00, 0.00, 'PAGO_TOTALMENTE', NULL, '
 Pagamento de R$25.00 registrado em 12/06/2025: teste', '2025-06-12 08:51:46.105925', '2025-06-12 11:24:16.970391');
 /*!40000 ALTER TABLE "fiados" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.itens_pedido
 CREATE TABLE IF NOT EXISTS "itens_pedido" (
 	"id" SERIAL NOT NULL,
 	"id_pedido" INTEGER NOT NULL,
@@ -155,11 +137,9 @@ CREATE TABLE IF NOT EXISTS "itens_pedido" (
 	CONSTRAINT "itens_pedido_id_produto_fkey" FOREIGN KEY ("id_produto") REFERENCES "produtos" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.itens_pedido: 0 rows
 /*!40000 ALTER TABLE "itens_pedido" DISABLE KEYS */;
 /*!40000 ALTER TABLE "itens_pedido" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.mesas
 CREATE TABLE IF NOT EXISTS "mesas" (
 	"id" SERIAL NOT NULL,
 	"numero_identificador" VARCHAR NOT NULL,
@@ -177,7 +157,6 @@ CREATE TABLE IF NOT EXISTS "mesas" (
 	CONSTRAINT "mesas_id_cliente_associado_fkey" FOREIGN KEY ("id_cliente_associado") REFERENCES "clientes" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.mesas: 0 rows
 /*!40000 ALTER TABLE "mesas" DISABLE KEYS */;
 INSERT INTO "mesas" ("id", "numero_identificador", "capacidade", "status", "qr_code_hash", "id_cliente_associado", "ativa_para_pedidos", "criado_em", "atualizado_em") VALUES
 	(1, '01', 4, 'DISPONIVEL', 'hash_qr_01', 1, 'true', '2025-05-27 08:20:10.094521-03', '2025-06-12 12:22:59.376774-03'),
@@ -186,7 +165,6 @@ INSERT INTO "mesas" ("id", "numero_identificador", "capacidade", "status", "qr_c
 	(3, '04', 2, 'OCUPADA', 'hash_qr_03', 3, 'true', '2025-05-27 08:20:10.094521-03', '2025-06-12 12:23:22.026999-03');
 /*!40000 ALTER TABLE "mesas" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.pagamentos
 CREATE TABLE IF NOT EXISTS "pagamentos" (
 	"id" SERIAL NOT NULL,
 	"id_comanda" INTEGER NOT NULL,
@@ -210,11 +188,9 @@ CREATE TABLE IF NOT EXISTS "pagamentos" (
 	CONSTRAINT "pagamentos_id_venda_fkey" FOREIGN KEY ("id_venda") REFERENCES "vendas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.pagamentos: 0 rows
 /*!40000 ALTER TABLE "pagamentos" DISABLE KEYS */;
 /*!40000 ALTER TABLE "pagamentos" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.password_reset_tokens
 CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
 	"id" SERIAL NOT NULL,
 	"user_id" INTEGER NOT NULL,
@@ -228,7 +204,6 @@ CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
 	CONSTRAINT "password_reset_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE
 );
 
--- Copiando dados para a tabela public.password_reset_tokens: 0 rows
 /*!40000 ALTER TABLE "password_reset_tokens" DISABLE KEYS */;
 INSERT INTO "password_reset_tokens" ("id", "user_id", "token", "is_active", "expires_at", "created_at") VALUES
 	(1, 2, '_SsaBN5Zl8mcwkKmupXEsRquA-CtKo_1FysECzteh5Q', 'true', '2025-06-11 11:24:22.085446', '2025-06-11 11:14:22.087617'),
@@ -253,7 +228,6 @@ INSERT INTO "password_reset_tokens" ("id", "user_id", "token", "is_active", "exp
 	(20, 2, 'AIfrkRYX7iQNPHSfyqgLZ7hWgBK3-ZuUhiUN_bmXhmw', 'false', '2025-06-11 13:18:03.586589', '2025-06-11 13:08:03.587588');
 /*!40000 ALTER TABLE "password_reset_tokens" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.pedidos
 CREATE TABLE IF NOT EXISTS "pedidos" (
 	"id" SERIAL NOT NULL,
 	"id_comanda" INTEGER NOT NULL,
@@ -272,11 +246,9 @@ CREATE TABLE IF NOT EXISTS "pedidos" (
 	CONSTRAINT "pedidos_mesa_id_fkey" FOREIGN KEY ("mesa_id") REFERENCES "mesas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.pedidos: 0 rows
 /*!40000 ALTER TABLE "pedidos" DISABLE KEYS */;
 /*!40000 ALTER TABLE "pedidos" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.produtos
 CREATE TABLE IF NOT EXISTS "produtos" (
 	"id" SERIAL NOT NULL,
 	"nome" VARCHAR NOT NULL,
@@ -294,11 +266,8 @@ CREATE TABLE IF NOT EXISTS "produtos" (
 	CONSTRAINT "produtos_categoria_id_fkey" FOREIGN KEY ("categoria_id") REFERENCES "categorias" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.produtos: 0 rows
 /*!40000 ALTER TABLE "produtos" DISABLE KEYS */;
 INSERT INTO "produtos" ("id", "nome", "descricao", "preco_unitario", "disponivel", "imagem_url", "categoria_id", "criado_em", "atualizado_em") VALUES
-	(1, 'Skol', 'Cerveja leve e refrescante', 5.50, 'true', 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Skol_logo.svg/1200px-Skol_logo.svg.png', 1, '2025-05-27 08:21:19.734175-03', NULL),
-	(2, 'Brahma', 'Cerveja tradicional brasileira', 5.80, 'true', 'https://upload.wikimedia.org/wikipedia/commons/4/44/Brahma_logo.svg', 1, '2025-05-27 08:21:19.734175-03', NULL),
 	(3, 'Heineken', 'Cerveja premium importada', 7.20, 'true', 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Heineken_logo.svg/1200px-Heineken_logo.svg.png', 1, '2025-05-27 08:21:19.734175-03', NULL),
 	(4, 'Stella Artois', 'Cerveja belga clássica', 8.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/7/79/Stella_Artois_logo.svg', 1, '2025-05-27 08:21:19.734175-03', NULL),
 	(5, 'Budweiser', 'Cerveja americana saborosa', 6.50, 'true', 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Budweiser_logo.svg/1200px-Budweiser_logo.svg.png', 1, '2025-05-27 08:21:19.734175-03', NULL),
@@ -311,10 +280,11 @@ INSERT INTO "produtos" ("id", "nome", "descricao", "preco_unitario", "disponivel
 	(12, 'Azeitonas', 'Porção de azeitonas temperadas', 12.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/6/6a/Olives_mixed_01.jpg', 3, '2025-05-27 08:21:19.752207-03', NULL),
 	(13, 'Amendoim', 'Amendoim torrado e salgado', 8.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/3/37/Peanuts-raw.jpg', 3, '2025-05-27 08:21:19.752207-03', NULL),
 	(14, 'Calabresa Acebolada', 'Calabresa frita com cebola', 20.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/0/0f/Calabresa_e_acebolada.jpg', 3, '2025-05-27 08:21:19.752207-03', NULL),
-	(15, 'Pastel', 'Pastel frito com recheio variado', 10.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/6/6d/Pastel.jpg', 3, '2025-05-27 08:21:19.752207-03', NULL);
+	(15, 'Pastel', 'Pastel frito com recheio variado', 10.00, 'true', 'https://upload.wikimedia.org/wikipedia/commons/6/6d/Pastel.jpg', 3, '2025-05-27 08:21:19.752207-03', NULL),
+	(1, 'Skol', 'Cerveja leve e refrescante.', 12.00, 'true', 'https://www.pontocertoconveniencia.com.br/media/catalog/product/cache/1/image/9df78eab33525d08d6e5fb8d27136e95/1/1/1175459.jpg', NULL, '2025-05-27 08:21:19.734175-03', '2025-06-12 13:23:24.233211-03'),
+	(2, 'Brahma', 'Cerveja tradicional brasileira', 5.80, 'true', 'https://cdn.formulaexpress.com.br/img/p/1/9/7/197-large_default.jpg', NULL, '2025-05-27 08:21:19.734175-03', '2025-06-12 13:27:52.052763-03');
 /*!40000 ALTER TABLE "produtos" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.refresh_tokens
 CREATE TABLE IF NOT EXISTS "refresh_tokens" (
 	"id" SERIAL NOT NULL,
 	"user_id" INTEGER NOT NULL,
@@ -328,13 +298,11 @@ CREATE TABLE IF NOT EXISTS "refresh_tokens" (
 	CONSTRAINT "refresh_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.refresh_tokens: 0 rows
 /*!40000 ALTER TABLE "refresh_tokens" DISABLE KEYS */;
 INSERT INTO "refresh_tokens" ("id", "user_id", "token", "expires_at", "created_at", "is_active") VALUES
 	(1, 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVzZXJfaWQiOiIxIiwiZXhwIjoxNzUwMzMxNTExLCJ0eXBlIjoicmVmcmVzaCJ9.RNoQfaAzOPXLZYyhCjfrvQTkSLtF7cT4MQTn79bpUdE', '2025-06-19 11:11:51.942788', '2025-06-12 08:11:51.443876', 'true');
 /*!40000 ALTER TABLE "refresh_tokens" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.users
 CREATE TABLE IF NOT EXISTS "users" (
 	"id" SERIAL NOT NULL,
 	"email" VARCHAR NOT NULL,
@@ -357,14 +325,12 @@ CREATE TABLE IF NOT EXISTS "users" (
 	UNIQUE ("username")
 );
 
--- Copiando dados para a tabela public.users: 0 rows
 /*!40000 ALTER TABLE "users" DISABLE KEYS */;
 INSERT INTO "users" ("id", "email", "username", "hashed_password", "first_name", "last_name", "phone", "imagem_url", "is_verified", "is_active", "is_superuser", "created_at", "updated_at") VALUES
 	(1, 'admin@example.com', 'admin', '$2b$12$pC5CAuIOZ5pwM8OT3720/OTtayto72mtQ8ctrRS2hfRUyWv7M89ui', 'Administrador', NULL, NULL, NULL, 'false', 'true', 'true', '2025-06-11 10:41:31.734027', '2025-06-11 10:41:31.734027'),
 	(2, 'fabianodaslira@gmail.com', 'fabiano', '$2b$12$dw4y3cnotSQvBt8ccf01X.uLrb.DU3hU3Osa9S7jDxTcNI1hqzA6W', 'Administrador', NULL, NULL, NULL, 'false', 'true', 'true', '2025-06-11 10:41:31.734027', '2025-06-11 13:16:07.771654');
 /*!40000 ALTER TABLE "users" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.vendas
 CREATE TABLE IF NOT EXISTS "vendas" (
 	"id" SERIAL NOT NULL,
 	"valor_total" NUMERIC(10,2) NOT NULL,
@@ -381,11 +347,9 @@ CREATE TABLE IF NOT EXISTS "vendas" (
 	CONSTRAINT "vendas_usuario_id_fkey" FOREIGN KEY ("usuario_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.vendas: 0 rows
 /*!40000 ALTER TABLE "vendas" DISABLE KEYS */;
 /*!40000 ALTER TABLE "vendas" ENABLE KEYS */;
 
--- Copiando estrutura para tabela public.venda_produto
 CREATE TABLE IF NOT EXISTS "venda_produto" (
 	"id_venda" INTEGER NOT NULL,
 	"id_produto" INTEGER NOT NULL,
@@ -396,7 +360,6 @@ CREATE TABLE IF NOT EXISTS "venda_produto" (
 	CONSTRAINT "venda_produto_id_venda_fkey" FOREIGN KEY ("id_venda") REFERENCES "vendas" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
--- Copiando dados para a tabela public.venda_produto: 0 rows
 /*!40000 ALTER TABLE "venda_produto" DISABLE KEYS */;
 /*!40000 ALTER TABLE "venda_produto" ENABLE KEYS */;
 

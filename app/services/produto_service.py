@@ -79,15 +79,16 @@ async def listar_cardapio(db: AsyncSession, skip: int = 0, limit: int = 100) -> 
     return resultado
 
 
-async def obter_produto(db: AsyncSession, produto_id: int) -> Produto:
-    """Obtém um produto por ID."""
+async def obter_produto(db: AsyncSession, produto_id: int) -> Produto | None:
+    """Obtém um produto por ID, incluindo categoria relacionada."""
     stmt = (
         select(Produto)
-        .options(selectinload(Produto.categoria_relacionada))
+        .options(selectinload(Produto.categoria_relacionada))  # Carrega a relação
         .where(Produto.id == produto_id)
     )
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    produto = result.scalar_one_or_none()  # Retorna a instância ORM do Produto ou None
+    return produto
 
 
 async def atualizar_produto(db: AsyncSession, produto_id: int, produto: ProdutoUpdate) -> Produto:

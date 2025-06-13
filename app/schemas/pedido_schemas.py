@@ -3,6 +3,8 @@ from enum import Enum
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from datetime import datetime
+from app.schemas.produto_schemas import ProdutoOut
+
 
 # Enum para o status do pedido
 class StatusPedido(str, Enum):
@@ -76,7 +78,6 @@ class PedidoCreate(BaseModel):
         json_schema_extra = {
             "example": {
                 "id_comanda": 101,
-                "id_usuario_registrou": 12,
                 "tipo_pedido": "Interno (Mesa)",
                 "status_geral_pedido": "Recebido",
                 "observacoes_pedido": "Sem cebola",

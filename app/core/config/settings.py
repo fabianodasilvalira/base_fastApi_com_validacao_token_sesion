@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 from typing import List, Optional, Union
 from urllib.parse import quote_plus
 from app.core.config.base import BaseAppSettings  # Supondo que esta classe exista
+from pydantic import field_validator
 
 class AppSettings(BaseAppSettings):
     # Gerais
@@ -56,6 +57,15 @@ class AppSettings(BaseAppSettings):
 
     # CORS
     BACKEND_CORS_ORIGINS: Union[str, List[AnyHttpUrl]] = []
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    def parse_cors(cls, value):
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except Exception:
+                return [v.strip() for v in value.split(",")]
+        return value
 
     # Logging
     LOG_LEVEL: str = "INFO"

@@ -3,6 +3,7 @@ from typing import Optional, List
 from enum import Enum
 from datetime import datetime
 from decimal import Decimal
+from app.schemas.produto_schemas import ProdutoOut  # ou Produto dependendo da estrutura
 
 
 class StatusComanda(str, Enum):

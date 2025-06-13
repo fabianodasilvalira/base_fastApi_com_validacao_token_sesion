@@ -129,6 +129,8 @@ class ComandaService:
             logger.error(f"❌ Erro ao criar comanda: {e}")
             raise ComandaValidationError(f"Erro interno ao criar comanda: {str(e)}")
 
+
+
     @staticmethod
     async def buscar_comanda_por_id(db: AsyncSession, comanda_id: int) -> Optional[Comanda]:
         """Busca uma comanda pelo ID com todos os relacionamentos necessários
@@ -191,7 +193,7 @@ class ComandaService:
                 .options(
                     joinedload(Comanda.mesa),
                     joinedload(Comanda.cliente),
-                    selectinload(Comanda.itens_pedido),
+                    selectinload(Comanda.itens_pedido).joinedload(ItemPedido.produto),  # ✅ corrigido aqui
                     selectinload(Comanda.pagamentos),
                     selectinload(Comanda.fiados_registrados),
                 )
@@ -199,11 +201,11 @@ class ComandaService:
             )
             comanda = result.unique().scalar_one_or_none()
 
-            # ✅ CORRIGIDO: Usar função síncrona
             if comanda:
                 sanitizar_valores_monetarios_sync(comanda)
 
             return comanda
+
         except Exception as e:
             logger.error(f"❌ Erro ao buscar comanda completa {comanda_id}: {e}")
             return None
@@ -219,7 +221,10 @@ class ComandaService:
                     selectinload(Comanda.cliente),
                     selectinload(Comanda.pagamentos),
                     selectinload(Comanda.fiados_registrados),
-                    selectinload(Comanda.itens_pedido),
+                    # ==========================================================
+                    # ALTERAÇÃO PRINCIPAL AQUI: Carregando o produto dentro do item
+                    # ==========================================================
+                    selectinload(Comanda.itens_pedido).selectinload(ItemPedido.produto)
                 )
                 .offset(skip)
                 .limit(limit)
@@ -227,7 +232,7 @@ class ComandaService:
             )
             comandas = result.scalars().all()
 
-            # ✅ CORRIGIDO: Usar função síncrona
+            # Esta parte agora deve funcionar sem erros
             for comanda in comandas:
                 sanitizar_valores_monetarios_sync(comanda)
 

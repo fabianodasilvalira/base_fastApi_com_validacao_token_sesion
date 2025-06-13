@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
+from app.schemas.produto_schemas import ProdutoOut  # ou Produto dependendo da estrutura
 
 # Enum para o status do item de pedido
 class StatusItemPedido(str, Enum):
@@ -48,7 +49,7 @@ class ItemPedido(BaseModel):
     id: int
     id_pedido: int
     id_comanda: int  # Adicionado campo id_comanda
-    id_produto: int
+    produto: Optional[ProdutoOut]  # 👈 Aqui está o retorno do produto completo
     quantidade: int
     preco_unitario: Decimal
     preco_total: Decimal  # Adicionado campo preco_total

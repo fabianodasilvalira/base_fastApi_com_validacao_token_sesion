@@ -43,9 +43,20 @@ async def on_startup():
     await create_first_superuser()
 
 if settings.BACKEND_CORS_ORIGINS:
+    try:
+        origins = (
+            json.loads(settings.BACKEND_CORS_ORIGINS)
+            if isinstance(settings.BACKEND_CORS_ORIGINS, str)
+            else settings.BACKEND_CORS_ORIGINS
+        )
+    except json.JSONDecodeError:
+        origins = [settings.BACKEND_CORS_ORIGINS]
+
+    print("🔵 CORS ORIGINS configurados:", origins)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

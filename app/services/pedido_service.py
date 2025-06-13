@@ -32,9 +32,7 @@ class PedidoService:
 
     async def criar_pedido(self, db: AsyncSession, pedido_data: PedidoCreate) -> Dict[str, Any]:
         """
-        VERSÃO COMPLETAMENTE REESCRITA - Estratégia de transações separadas para garantir persistência.
-
-        Cria um novo pedido com seus itens associados e atualiza a comanda imediatamente.
+        Cria um novo pedido com seus itens associados e atualiza a comanda.
         """
         try:
             logger.info(f"🚀 Iniciando criação de pedido para comanda {pedido_data.id_comanda}")
@@ -104,30 +102,27 @@ class PedidoService:
                 novo_item.calcular_preco_total()
                 db.add(novo_item)
 
-            # 4. COMMIT DO PEDIDO E ITENS - PRIMEIRA TRANSAÇÃO
+            # 4. COMMIT DO PEDIDO E ITENS
             await db.commit()
             logger.info(f"✅ Pedido {novo_pedido.id} e itens salvos com sucesso")
 
-            # 5. RECALCULAR COMANDA EM TRANSAÇÃO SEPARADA - GARANTIA DE PERSISTÊNCIA
+            # 5. REVALIDAR COMANDA
             try:
                 logger.info(f"🔄 Iniciando recálculo da comanda {comanda.id}")
-                # AQUI ESTÁ A CORREÇÃO - ADICIONAR A CHAMADA PARA RECALCULAR
                 await comanda_service.recalculate_comanda_totals(db, comanda.id, fazer_commit=True)
                 logger.info(f"✅ Recálculo da comanda {comanda.id} concluído com sucesso")
-
             except Exception as e:
                 logger.error(f"💥 ERRO no recálculo da comanda {comanda.id}: {e}")
-                # Não falha o pedido, mas tenta recálculo simples
                 try:
                     await comanda_service.recalculate_comanda_totals(db, comanda.id, fazer_commit=True)
                 except:
                     logger.error(f"💥 FALHA TOTAL no recálculo da comanda {comanda.id}")
 
-            # 6. BUSCAR PEDIDO COMPLETO PARA RETORNO
+            # 6. BUSCAR PEDIDO COMPLETO
             query = (
                 select(PedidoModel)
                 .options(
-                    selectinload(PedidoModel.itens),
+                    selectinload(PedidoModel.itens).selectinload(ItemPedidoModel.produto),
                     joinedload(PedidoModel.comanda),
                     joinedload(PedidoModel.usuario_registrou),
                     joinedload(PedidoModel.mesa)
@@ -161,18 +156,26 @@ class PedidoService:
                     "id": item.id,
                     "id_pedido": item.id_pedido,
                     "id_comanda": item.id_comanda,
-                    "id_produto": item.id_produto,
                     "quantidade": item.quantidade,
                     "preco_unitario": float(item.preco_unitario),
                     "preco_total": float(item.preco_total),
                     "observacoes": item.observacoes,
                     "status": item.status.value,
                     "created_at": item.created_at.isoformat() if item.created_at else None,
-                    "updated_at": item.updated_at.isoformat() if item.updated_at else None
+                    "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+                    "produto": {
+                        "id": item.produto.id,
+                        "nome": item.produto.nome,
+                        "descricao": item.produto.descricao,
+                        "preco_unitario": float(item.produto.preco_unitario),
+                        "disponivel": item.produto.disponivel,
+                        "categoria": item.produto.categoria_relacionada.nome if item.produto.categoria_relacionada else None,
+                        # adicione mais campos conforme necessidade
+                    } if item.produto else None
                 }
                 pedido_dict["itens"].append(item_dict)
 
-            # 8. NOTIFICAÇÃO (NÃO CRÍTICA)
+            # 8. NOTIFICAÇÃO (opcional)
             try:
                 await self._notificar_novo_pedido_seguro(pedido_dict)
             except Exception as e:
@@ -191,6 +194,8 @@ class PedidoService:
                 detail=f"Erro interno ao criar pedido: {str(e)}"
             )
 
+
+
     # ... resto dos métodos permanecem iguais ...
     async def listar_pedidos(
             self,
@@ -205,7 +210,9 @@ class PedidoService:
         """
         query = (
             select(PedidoModel)
-            .options(selectinload(PedidoModel.itens))
+            .options(
+                selectinload(PedidoModel.itens).selectinload(ItemPedidoModel.produto)
+            )
         )
 
         # Aplicar filtros
@@ -214,15 +221,13 @@ class PedidoService:
                 status_enum = StatusPedido(status)
                 query = query.where(PedidoModel.status_geral_pedido == status_enum)
             except ValueError:
-                # Status inválido, ignorar filtro
-                pass
+                pass  # Ignora filtro inválido
 
         if data_inicio:
             try:
                 data_inicio_dt = datetime.fromisoformat(data_inicio)
                 query = query.where(PedidoModel.created_at >= data_inicio_dt)
             except ValueError:
-                # Data inválida, ignorar filtro
                 pass
 
         if data_fim:
@@ -230,16 +235,13 @@ class PedidoService:
                 data_fim_dt = datetime.fromisoformat(data_fim)
                 query = query.where(PedidoModel.created_at <= data_fim_dt)
             except ValueError:
-                # Data inválida, ignorar filtro
                 pass
 
-        # Ordenar por data de criação (mais recentes primeiro)
         query = query.order_by(PedidoModel.created_at.desc())
 
         result = await db.execute(query)
         pedidos = result.scalars().all()
 
-        # Converter para lista de dicionários
         pedidos_list = []
         for pedido in pedidos:
             pedido_dict = {
@@ -256,7 +258,6 @@ class PedidoService:
                 "itens": []
             }
 
-            # Adicionar itens ao dicionário
             for item in pedido.itens:
                 item_dict = {
                     "id": item.id,
@@ -269,13 +270,20 @@ class PedidoService:
                     "observacoes": item.observacoes,
                     "status": item.status.value,
                     "created_at": item.created_at.isoformat() if item.created_at else None,
-                    "updated_at": item.updated_at.isoformat() if item.updated_at else None
+                    "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+                    "produto": {
+                        "id": item.produto.id,
+                        "nome": item.produto.nome,
+                        "preco_unitario": float(item.produto.preco_unitario),  # corrigido aqui
+                    } if item.produto else None
                 }
                 pedido_dict["itens"].append(item_dict)
 
             pedidos_list.append(pedido_dict)
 
         return pedidos_list
+
+
 
     async def buscar_pedido(self, db: AsyncSession, pedido_id: int) -> Dict[str, Any]:
         """
