@@ -80,22 +80,19 @@ async def obter_pagamento(db_session: AsyncSession, pagamento_id: int):
     return result.scalars().first()
 
 
-async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCreateSchema):
-
-    # Validar existência da comanda (e carregar cliente associado se houver)
+async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCreateSchema, usuario_autenticado: User):
+    # Validar existência da comanda
     comanda_query = select(Comanda).options(joinedload(Comanda.cliente)).where(Comanda.id == pagamento_data.id_comanda)
     comanda_result = await db_session.execute(comanda_query)
     comanda = comanda_result.scalars().first()
     if not comanda:
         raise HTTPException(status_code=400, detail=f"Comanda ID {pagamento_data.id_comanda} não encontrada.")
 
-    # MODIFICAÇÃO: Validações da Comanda usando o saldo devedor restante (valor_total_calculado)
     saldo_devedor_atual = comanda.valor_total_calculado
 
     if saldo_devedor_atual <= Decimal("0.00"):
         pass  # A comanda já está paga, mas permite registrar pagamento
 
-    # Validação específica para FIADO: id_cliente é obrigatório
     cliente_pagamento = None
     if pagamento_data.id_cliente:
         cliente_query = select(Cliente).where(Cliente.id == pagamento_data.id_cliente)
@@ -106,7 +103,6 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
         if comanda.id_cliente_associado and comanda.id_cliente_associado != pagamento_data.id_cliente:
             raise HTTPException(status_code=400,
                                 detail=f"O cliente do pagamento (ID {pagamento_data.id_cliente}) não corresponde ao cliente associado à comanda (ID {comanda.id_cliente_associado}).")
-        # Se a comanda não tem cliente, associa o do pagamento
         if not comanda.id_cliente_associado:
             comanda.id_cliente_associado = pagamento_data.id_cliente
             comanda.cliente = cliente_pagamento
@@ -114,31 +110,29 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
     if pagamento_data.metodo_pagamento == MetodoPagamento.FIADO and not comanda.id_cliente_associado:
         raise HTTPException(status_code=400, detail="ID do Cliente é obrigatório para pagamentos Fiado.")
 
-    # Validação do usuário que registrou
-    if pagamento_data.id_usuario_registrou:
-        usuario_query = select(User).where(User.id == pagamento_data.id_usuario_registrou)
-        usuario_result = await db_session.execute(usuario_query)
-        if not usuario_result.scalars().first():
-            raise HTTPException(status_code=400,
-                                detail=f"Usuário ID {pagamento_data.id_usuario_registrou} não encontrado.")
+    id_usuario = usuario_autenticado.id
+    usuario_query = select(User).where(User.id == id_usuario)
+    usuario_result = await db_session.execute(usuario_query)
+    if not usuario_result.scalars().first():
+        raise HTTPException(status_code=400, detail=f"Usuário ID {id_usuario} não encontrado.")
 
     try:
-        novo_pagamento = Pagamento(**pagamento_data.dict())
+        # Correção: evitar passar id_usuario_registrou duas vezes
+        pagamento_dict = pagamento_data.dict()
+        pagamento_dict["id_usuario_registrou"] = usuario_autenticado.id
+
+        novo_pagamento = Pagamento(**pagamento_dict)
         if novo_pagamento.valor_pago <= Decimal("0.00"):
             raise HTTPException(status_code=400, detail="O valor do pagamento deve ser positivo.")
         db_session.add(novo_pagamento)
 
-        # Atualizar Comanda
         valor_pagamento_atual = novo_pagamento.valor_pago
         novo_fiado_record = None
 
-        # Adicionar ao valor_pago direto da comanda
         comanda.valor_pago = (comanda.valor_pago or Decimal("0.00")) + valor_pagamento_atual
 
-        # Se for FIADO, também adicionar ao valor_fiado e criar registro Fiado
         if novo_pagamento.metodo_pagamento == MetodoPagamento.FIADO:
             comanda.valor_fiado = (comanda.valor_fiado or Decimal("0.00")) + valor_pagamento_atual
-            # Criar registro Fiado
             novo_fiado_record = Fiado(
                 id_comanda=comanda.id,
                 id_cliente=comanda.id_cliente_associado,
@@ -150,29 +144,21 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
             )
             db_session.add(novo_fiado_record)
 
-        # MODIFICAÇÃO: Calcular status usando nova lógica onde valor_total_calculado é o saldo devedor restante
         cliente_com_saldo_atualizado = await _calcular_valores_e_status_comanda(comanda, db_session)
 
-        # NOVA LÓGICA: Verificar se há pagamento excedente e cliente para creditar
-
-        # Calcular valor total original (antes dos pagamentos)
         total_itens = comanda.valor_final_comanda or Decimal("0.00")
         taxa = comanda.valor_taxa_servico or Decimal("0.00")
         desconto = comanda.valor_desconto or Decimal("0.00")
         valor_total_original = max(Decimal("0.00"), total_itens + taxa - desconto)
 
-        # Calcular valor pago total
         valor_pago_total = comanda.valor_pago or Decimal("0.00")
         valor_credito = comanda.valor_credito_usado or Decimal("0.00")
 
-        # Verificar se há pagamento excedente
         pagamento_excedente = valor_pago_total > valor_total_original
-
 
         if pagamento_excedente and comanda.id_cliente_associado:
             valor_excedente = valor_pago_total - valor_total_original
 
-            # Buscar cliente diretamente do banco para garantir que está na sessão atual
             cliente_id = comanda.id_cliente_associado
             cliente_query = select(Cliente).where(Cliente.id == cliente_id)
             cliente_result = await db_session.execute(cliente_query)
@@ -183,7 +169,6 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
                 novo_saldo = saldo_atual + valor_excedente
 
                 try:
-                    # Primeira tentativa com SQLAlchemy
                     await db_session.execute(
                         update(Cliente)
                         .where(Cliente.id == cliente_id)
@@ -191,7 +176,6 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
                     )
                 except Exception as e:
                     try:
-                        # Fallback com SQL puro e parâmetros
                         await db_session.execute(
                             text("UPDATE clientes SET saldo_credito = :saldo WHERE id = :id"),
                             {"saldo": float(novo_saldo), "id": cliente_id}
@@ -199,26 +183,19 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
                     except Exception as e2:
                         print(f"❌ ERRO na segunda tentativa (SQL direto): {str(e2)}")
 
-                # Commit no final, se necessário
                 await db_session.commit()
-
-                # Atualizar também o objeto em memória para consistência
                 cliente_credito.saldo_credito = novo_saldo
 
-                # Ajustar o valor total calculado para zero
                 comanda.valor_total_calculado = Decimal("0.00")
 
-                # Registrar nas observações da comanda
                 obs_credito = f"Crédito adicionado: R$ {valor_excedente} (pagamento excedente)"
                 if comanda.observacoes:
                     comanda.observacoes += f"\n{obs_credito}"
                 else:
                     comanda.observacoes = obs_credito
 
-                # Adicionar o cliente à sessão para garantir persistência
                 db_session.add(cliente_credito)
             else:
-                # Ajustar o valor total calculado para zero mesmo sem cliente
                 comanda.valor_total_calculado = Decimal("0.00")
 
         db_session.add(comanda)
@@ -230,28 +207,20 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
             novo_fiado_record.observacoes = f"Fiado registrado via Pagamento ID: {novo_pagamento.id}"
             db_session.add(novo_fiado_record)
 
-        # Forçar flush antes do commit para garantir que todas as operações sejam enviadas ao banco
         await db_session.flush()
-
-        # Commit para salvar todas as alterações
         await db_session.commit()
 
-        # Refresh para garantir que os dados estão atualizados
         await db_session.refresh(novo_pagamento)
         await db_session.refresh(comanda)
-
         if novo_fiado_record:
             await db_session.refresh(novo_fiado_record)
 
-        # Verificação adicional para garantir que o saldo foi salvo (se houve crédito excedente)
         if comanda.id_cliente_associado and comanda.valor_total_calculado == Decimal("0.00"):
-            # Consulta direta ao banco após o commit
             cliente_query = select(Cliente).where(Cliente.id == comanda.id_cliente_associado)
-            cliente_result = await db_session.execute(cliente_query)
-            cliente_verificado = cliente_result.scalar_one_or_none()
-
+            await db_session.execute(cliente_query)  # apenas para garantir
 
         return novo_pagamento
+
     except HTTPException as http_exc:
         await db_session.rollback()
         raise http_exc
@@ -262,6 +231,7 @@ async def criar_pagamento(db_session: AsyncSession, pagamento_data: PagamentoCre
         await db_session.rollback()
         error_trace = traceback.format_exc()
         raise HTTPException(status_code=500, detail=f"Erro inesperado ao criar pagamento: {e}\n{error_trace}")
+
 
 
 async def atualizar_pagamento(db_session: AsyncSession, pagamento_id: int, dados_update: PagamentoUpdateSchema):

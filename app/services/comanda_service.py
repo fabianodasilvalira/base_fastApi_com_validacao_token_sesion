@@ -701,10 +701,16 @@ class ComandaService:
             raise ComandaValidationError(f"Erro interno ao gerar QR Code: {str(e)}")
 
     @staticmethod
-    async def aplicar_desconto(db: AsyncSession, comanda_id: int, valor_desconto: Decimal,
-                               motivo: Optional[str] = None) -> Comanda:
-        """✅ CORRIGIDO: Aplica um desconto na comanda"""
+    async def aplicar_desconto(
+            db: AsyncSession,
+            comanda_id: int,
+            valor_desconto: Decimal,
+            motivo: Optional[str] = None
+    ) -> Comanda:
+        """✅ Aplica um desconto na comanda com validações e atualiza os valores."""
+
         try:
+            # Buscar a comanda pelo ID
             comanda = await ComandaService.buscar_comanda_por_id(db, comanda_id)
             if not comanda:
                 raise ComandaValidationError(f"Comanda {comanda_id} não encontrada")
@@ -712,24 +718,27 @@ class ComandaService:
             # Validar status da comanda
             if comanda.status_comanda in [StatusComanda.CANCELADA, StatusComanda.FECHADA]:
                 raise ComandaValidationError(
-                    f"Não é possível aplicar desconto em comanda {comanda.status_comanda.value}")
+                    f"Não é possível aplicar desconto em comanda {comanda.status_comanda.value}"
+                )
 
-            # Validar valor do desconto
-            if valor_desconto < 0:
+            # Validar valor do desconto (não negativo)
+            if valor_desconto < Decimal("0.00"):
                 raise ComandaValidationError("Valor do desconto não pode ser negativo")
 
-            # Calcular valor máximo de desconto (não pode ser maior que itens + taxa)
-            valor_maximo_desconto = comanda.valor_final_comanda + comanda.valor_taxa_servico
+            # Calcular valor máximo do desconto (itens + taxa)
+            valor_maximo_desconto = (comanda.valor_final_comanda or Decimal("0.00")) + (
+                        comanda.valor_taxa_servico or Decimal("0.00"))
             if valor_desconto > valor_maximo_desconto:
                 raise ComandaValidationError(
-                    f"Desconto não pode ser maior que o valor total da comanda (R$ {valor_maximo_desconto})")
+                    f"Desconto não pode ser maior que o valor total da comanda (R$ {valor_maximo_desconto})"
+                )
 
             logger.info(f"🎁 Aplicando desconto - Comanda {comanda_id}: Valor: {valor_desconto}")
 
-            # Aplicar desconto
+            # Aplicar desconto na comanda
             comanda.valor_desconto = valor_desconto
 
-            # Adicionar motivo nas observações se fornecido
+            # Atualizar observações com motivo do desconto
             if motivo:
                 observacao_desconto = f"Desconto aplicado: R$ {valor_desconto} - {motivo}"
                 if comanda.observacoes:
@@ -737,36 +746,50 @@ class ComandaService:
                 else:
                     comanda.observacoes = observacao_desconto
 
-            # ✅ CORRIGIDO: Calcular manualmente
-            valor_total_original = (comanda.valor_final_comanda or Decimal(0)) + (
-                        comanda.valor_taxa_servico or Decimal(0)) - (comanda.valor_desconto or Decimal(0))
-            valor_coberto = (comanda.valor_pago or Decimal(0)) + (comanda.valor_credito_usado or Decimal(0))
-            comanda.valor_total_calculado = max(Decimal(0), valor_total_original - valor_coberto)
+            # Recalcular valor total calculado manualmente
+            valor_total_original = (
+                    (comanda.valor_final_comanda or Decimal("0.00")) +
+                    (comanda.valor_taxa_servico or Decimal("0.00")) -
+                    (comanda.valor_desconto or Decimal("0.00"))
+            )
+            valor_coberto = (
+                    (comanda.valor_pago or Decimal("0.00")) +
+                    (comanda.valor_credito_usado or Decimal("0.00"))
+            )
+            comanda.valor_total_calculado = max(Decimal("0.00"), valor_total_original - valor_coberto)
 
-            # Atualizar status se necessário
-            if comanda.valor_total_calculado <= Decimal(0) and valor_coberto > 0:
+            # Atualizar status com base no saldo
+            if comanda.valor_total_calculado <= Decimal("0.00") and valor_coberto > Decimal("0.00"):
                 comanda.status_comanda = StatusComanda.PAGA_TOTALMENTE
-            elif valor_coberto > 0:
+            elif valor_coberto > Decimal("0.00"):
                 comanda.status_comanda = StatusComanda.PAGA_PARCIALMENTE
 
-            # ✅ CORRIGIDO: Usar função síncrona
+            # Sanitizar valores monetários (função síncrona)
             sanitizar_valores_monetarios_sync(comanda)
 
+            # Commit da transação e refresh para garantir dados atualizados
             await db.commit()
             await db.refresh(comanda)
 
-            logger.info(f"✅ Desconto aplicado: Comanda {comanda_id}, "
-                        f"Valor {valor_desconto}, "
-                        f"Novo Saldo: {comanda.valor_total_calculado}, "
-                        f"Status: {comanda.status_comanda}")
+            logger.info(
+                f"✅ Desconto aplicado: Comanda {comanda_id}, "
+                f"Valor {valor_desconto}, "
+                f"Novo Saldo: {comanda.valor_total_calculado}, "
+                f"Status: {comanda.status_comanda}"
+            )
+
             return comanda
 
         except ComandaValidationError:
+            await db.rollback()  # Corrigir rollback em caso de erro customizado também
             raise
         except Exception as e:
             await db.rollback()
-            logger.error(f"❌ Erro ao aplicar desconto na comanda {comanda_id}: {e}")
+            logger.error(f"❌ Erro ao aplicar desconto na comanda {comanda_id}: {e}", exc_info=True)
             raise ComandaValidationError(f"Erro interno ao aplicar desconto: {str(e)}")
+
+
+
 
     @staticmethod
     async def adicionar_credito_cliente(db: AsyncSession, cliente_id: int, valor_credito: Decimal,
