@@ -177,9 +177,26 @@ class PedidoService:
 
             # 8. NOTIFICAÇÃO (opcional)
             try:
-                await self._notificar_novo_pedido_seguro(pedido_dict)
+                # Usar a instância de serviço Redis existente
+                # Assumindo que redis_service_instance é um cliente Redis assíncrono
+                # e que ele já lida com a conexão e disponibilidade.
+                # Se não for, o erro pode persistir e a refatoração de redis_service será necessária.
+
+                message = WebSocketMessage(
+                    type="NEW_ORDER",
+                    payload=NotificationPayload(
+                        title="Novo Pedido Recebido!",
+                        body=f"Pedido #{pedido_data['id']} para comanda {pedido_data['comanda']['id']} foi criado.",
+                        data=pedido_data
+                    )
+                )
+                redis_service_instance.publish(
+                    channel="new_orders",
+                    message=message.model_dump_json()
+                )
+                logger.info(f"Notificação de novo pedido {pedido_data['id']} enviada via Redis.")
             except Exception as e:
-                logger.warning(f"Erro ao notificar novo pedido (não crítico): {e}")
+                logger.warning(f"Erro ao notificar novo pedido via Redis (não crítico): {e}")
 
             logger.info(f"🎉 Pedido {novo_pedido.id} criado com sucesso para comanda {comanda.id}")
             return pedido_dict
@@ -556,80 +573,7 @@ class PedidoService:
 
         return novo_status in transicoes_validas.get(status_atual, [])
 
-    def _verificar_redis_disponivel(self) -> bool:
-        """
-        Verifica se o Redis está disponível e acessível.
-        """
-        try:
-            redis_client = redis.Redis(
-                host='localhost',
-                port=6379,
-                db=0,
-                socket_connect_timeout=1,
-                socket_timeout=1
-            )
-            redis_client.ping()
-            return True
-        except (redis.ConnectionError, redis.TimeoutError):
-            return False
-        except Exception:
-            return False
 
-    async def _notificar_novo_pedido(self, pedido_data: dict):
-        """
-        Notifica sobre um novo pedido via Redis (pub/sub) para sistemas em tempo real.
-        Método de instância da classe PedidoService.
-        """
-        try:
-            # Verificar se Redis está disponível antes de tentar conectar
-            if not self._verificar_redis_disponivel():
-                logger.info("Redis não disponível. Pulando notificação em tempo real.")
-                return
-
-            # Configuração do Redis (ajuste conforme sua configuração)
-            redis_client = redis.Redis(
-                host='localhost',
-                port=6379,
-                db=0,
-                decode_responses=True,
-                socket_connect_timeout=2,
-                socket_timeout=2
-            )
-
-            # Verificar conexão Redis
-            try:
-                redis_client.ping()
-                logger.debug("Conexão Redis estabelecida com sucesso")
-            except redis.ConnectionError:
-                logger.warning("Redis não está disponível. Notificação em tempo real desabilitada.")
-                return
-            except Exception as e:
-                logger.warning(f"Erro ao conectar com Redis: {e}. Notificação em tempo real desabilitada.")
-                return
-
-            # Preparar dados para notificação
-            message = {
-                "tipo": "novo_pedido",
-                "pedido_id": pedido_data.get("id"),
-                "comanda_id": pedido_data.get("id_comanda"),
-                "timestamp": str(pedido_data.get("created_at")) if pedido_data.get("created_at") else None,
-                "status": pedido_data.get("status_geral_pedido"),
-                "total_itens": len(pedido_data.get("itens", [])) if pedido_data.get("itens") else 0,
-                "observacoes": pedido_data.get("observacoes_pedido")
-            }
-
-            # Converter para JSON string
-            message_json = json.dumps(message, default=str)
-
-            # Publicar no canal Redis
-            channel = "novos_pedidos"
-            redis_client.publish(channel, message_json)
-            logger.info(f"Notificação de novo pedido publicada no Redis - Pedido ID: {pedido_data.get('id')}")
-
-        except redis.RedisError as e:
-            logger.error(f"Erro Redis ao notificar novo pedido: {e}")
-        except Exception as e:
-            logger.error(f"Erro inesperado ao notificar novo pedido: {e}")
 
     async def _notificar_novo_pedido_seguro(self, pedido_data: dict):
         """

@@ -23,6 +23,8 @@ async def criar_pedido(
     # Convertendo o dicionário para o schema Pedido para serialização segura
     return pedido_dict
 
+
+
 # Listar pedidos (com filtros opcionais)
 @router.get("/", response_model=List[Pedido])
 async def listar_pedidos(

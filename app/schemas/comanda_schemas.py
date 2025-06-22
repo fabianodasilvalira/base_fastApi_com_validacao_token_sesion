@@ -31,6 +31,15 @@ class ItemPedidoInResponse(BaseModel):
         from_attributes = True
 
 
+class ComandaDescontoSchema(BaseModel):
+    """Schema para aplicar desconto em uma comanda."""
+    valor_desconto: Decimal = Field(..., gt=Decimal("0.00"), description="Valor do desconto a ser aplicado (deve ser positivo).")
+    motivo: Optional[str] = Field(None, description="Motivo ou justificativa para o desconto.", max_length=255)
+
+    class Config:
+        orm_mode = True
+
+
 class PagamentoResponseSchema(BaseModel):
     id: int
     valor_pago: Decimal

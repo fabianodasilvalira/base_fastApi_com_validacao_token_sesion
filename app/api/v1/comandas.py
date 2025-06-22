@@ -6,8 +6,9 @@ from decimal import Decimal
 from datetime import datetime
 
 from app.core.session import get_db
+from app.models import Comanda
 from app.schemas.comanda_schemas import ComandaCreate, ComandaUpdate, ComandaInResponse, ComandaCreateResponse, \
-    QRCodeHashResponse
+    QRCodeHashResponse, ComandaDescontoSchema, StatusComanda
 from app.schemas.pagamento_schemas import PagamentoCreateSchema
 from app.schemas.fiado_schemas import FiadoCreate
 from app.services.comanda_service import ComandaService, ComandaValidationError
@@ -213,6 +214,7 @@ async def obter_comanda_por_id(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno do servidor")
 
 
+
 @router.get("/{comanda_id}", response_model=ComandaInResponse)
 async def obter_comanda_por_id(
         comanda_id: int,
@@ -406,3 +408,25 @@ async def recalcular_totais(
         logger.error(f"❌ Erro inesperado ao recalcular totais da comanda {comanda_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Erro interno do servidor ao recalcular totais")
+
+@router.post("/{comanda_id}/aplicar-desconto", response_model=ComandaInResponse)
+async def aplicar_desconto_endpoint(
+    comanda_id: int,
+    valor_desconto: Decimal,
+    motivo: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    ✅ Aplica um desconto em uma comanda, respeitando regras de validação e consistência.
+    """
+    try:
+        comanda = await ComandaService.aplicar_desconto(
+            db=db,
+            comanda_id=comanda_id,
+            valor_desconto=valor_desconto,
+            motivo=motivo
+        )
+        return comanda
+
+    except ComandaValidationError as e:
+        raise e  # Pode personalizar resposta com status_code 400 se desejar

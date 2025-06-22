@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
+from app.api.deps import get_current_user
 from app.core.session import get_db
+from app.models import User
 from app.schemas.pagamento_schemas import (
     PagamentoResponseSchema,
     PagamentoCreateSchema,
@@ -44,15 +46,22 @@ async def read(pagamento_id: int, db_session: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     return pagamento
 
+
 @router.post("/", response_model=PagamentoResponseSchema)
-async def create(pagamento: PagamentoCreateSchema, db_session: AsyncSession = Depends(get_db)):
+async def create(
+    pagamento: PagamentoCreateSchema,
+    db_session: AsyncSession = Depends(get_db),
+    usuario_autenticado: User = Depends(get_current_user),
+):
     """
     Cria um novo pagamento no sistema.
 
     - **pagamento**: Dados do novo pagamento
     - **Retorno**: Pagamento criado
     """
-    return await criar_pagamento(db_session, pagamento)
+    return await criar_pagamento(db_session, pagamento, usuario_autenticado)
+
+
 
 # @router.put("/{pagamento_id}", response_model=PagamentoResponseSchema)
 # async def update(pagamento_id: int, dados: PagamentoUpdateSchema, db_session: AsyncSession = Depends(get_db)):
