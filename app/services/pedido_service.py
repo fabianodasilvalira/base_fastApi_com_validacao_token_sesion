@@ -427,6 +427,9 @@ class PedidoService:
 
         return pedido_dict, f"Status do pedido atualizado para {novo_status.value}"
 
+
+
+
     async def cancelar_pedido(self, db: AsyncSession, pedido_id: int) -> Optional[Dict[str, Any]]:
         """
         Cancela um pedido e todos os seus itens.

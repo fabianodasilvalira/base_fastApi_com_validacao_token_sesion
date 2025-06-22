@@ -165,3 +165,33 @@ from app.schemas.item_pedido_schemas import (
     ItemPedido, 
     ItemPedidoPublicCreateSchema, ItemPedidoPublicResponseSchema
 )
+
+class ItemPedidoSemProduto(BaseModel):
+    id: int
+    id_pedido: int
+    id_comanda: int
+    id_produto: int
+    quantidade: int
+    preco_unitario: float
+    preco_total: float
+    observacoes: Optional[str]
+    status: str
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class PedidoSemProduto(BaseModel):
+    id: int
+    id_comanda: int
+    tipo_pedido: TipoPedido
+    status_geral_pedido: StatusPedido
+    observacoes_pedido: Optional[str]
+    motivo_cancelamento: Optional[str]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    itens: List[ItemPedidoSemProduto]
+
+    class Config:
+        from_attributes = True

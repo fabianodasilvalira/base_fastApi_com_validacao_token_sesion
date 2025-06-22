@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 
 from app.core.session import get_db
 from app.schemas.pedido_schemas import (
-    PedidoCreate, StatusPedidoUpdate, Pedido
+    PedidoCreate, StatusPedidoUpdate, Pedido, PedidoSemProduto
 )
 from app.services.pedido_service import pedido_service
 
@@ -40,7 +40,7 @@ async def listar_pedidos(
     return pedidos_list
 
 # Atualização do status do pedido
-@router.put("/{pedido_id}/status", response_model=Pedido)
+@router.put("/{pedido_id}/status", response_model=PedidoSemProduto)
 async def atualizar_status_pedido(
     pedido_id: int,
     status_update: StatusPedidoUpdate,
@@ -71,7 +71,7 @@ async def detalhar_pedido(
     return pedido_dict
 
 # Cancelar pedido
-@router.put("/{pedido_id}/cancelar", response_model=Pedido)
+@router.put("/{pedido_id}/cancelar", response_model=PedidoSemProduto)
 async def cancelar_pedido(
     pedido_id: int,
     db_session: AsyncSession = Depends(get_db)
