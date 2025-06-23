@@ -48,12 +48,13 @@ async def criar_fiado(
 
 
 
-@router.get("/", response_model=List[FiadoSchema], summary="Obter todos os fiados com valor diferente de zero")
+@router.get("/", response_model=List[FiadoSchema], summary="Obter todos os fiados")
 async def obter_fiados(
     db: AsyncSession = Depends(get_db),
+    #usuario_atual: User = Depends(deps.get_current_active_superuser)
 ):
     """
-    Retorna todos os fiados cadastrados com valor diferente de zero.
+    Retorna todos os fiados cadastrados.
     """
     try:
         return await fiado_service.get_fiado_all(db)
