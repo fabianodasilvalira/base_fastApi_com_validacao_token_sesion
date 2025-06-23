@@ -191,30 +191,6 @@ async def criar_comanda(
         logger.error(f"❌ Erro inesperado ao criar comanda: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno do servidor")
 
-
-@router.get("/{comanda_id}", response_model=ComandaInResponse)
-async def obter_comanda_por_id(
-        comanda_id: int,
-        db_session: AsyncSession = Depends(get_db)
-):
-    """Obtém uma comanda específica por ID"""
-    try:
-        comanda = await ComandaService.buscar_comanda_completa(db_session, comanda_id)
-        if not comanda:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comanda não encontrada")
-
-        # ✅ CORRIGIDO: Usar serialização segura
-        comanda_dict = _serializar_comanda_segura(comanda)
-        return ComandaInResponse(**comanda_dict)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Erro ao buscar comanda {comanda_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno do servidor")
-
-
-
 @router.get("/{comanda_id}", response_model=ComandaInResponse)
 async def obter_comanda_por_id(
         comanda_id: int,
